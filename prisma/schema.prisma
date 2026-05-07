@@ -1,0 +1,253 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ── Enums ──────────────────────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  DRIVER
+}
+
+enum Language {
+  EN
+  UR
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  CNG
+  HYBRID
+}
+
+enum Platform {
+  INDRIVE
+  YANGO
+  OTHER
+  PRIVATE
+}
+
+enum PaymentType {
+  CASH
+  WALLET
+  CARD
+}
+
+enum SalaryType {
+  FIXED
+  PERCENTAGE
+  HYBRID
+}
+
+enum ExpenseCategory {
+  FUEL
+  MAINTENANCE
+  OIL_CHANGE
+  TYRE
+  WASH
+  FINE
+  INSURANCE
+  TOKEN_TAX
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SettlementStatus {
+  PENDING
+  SETTLED
+}
+
+// ── Models ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  phone        String   @unique
+  name         String
+  role         Role
+  language     Language @default(EN)
+  photoUrl     String?
+  cnic         String?
+  passwordHash String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Vehicle ownership
+  ownedVehicles     Vehicle[]          @relation("VehicleOwner")
+  // Assignments (as owner and as driver)
+  ownerAssignments  DriverAssignment[] @relation("AssignmentOwner")
+  driverAssignments DriverAssignment[] @relation("AssignmentDriver")
+  // Activity logs
+  loggedRides       Ride[]             @relation("RideDriver")
+  loggedExpenses    Expense[]          @relation("ExpenseLogger")
+  fuelLogs          FuelLog[]          @relation("FuelDriver")
+  // Settlements (as owner and as driver)
+  ownerSettlements  Settlement[]       @relation("SettlementOwner")
+  driverSettlements Settlement[]       @relation("SettlementDriver")
+  // Notifications
+  notifications     Notification[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id              String    @id @default(uuid())
+  ownerId         String
+  plateNumber     String    @unique
+  makeModel       String
+  fuelType        FuelType  @default(PETROL)
+  platforms       Json      @default("[]")
+  insuranceExpiry DateTime?
+  photoUrl        String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  owner             User               @relation("VehicleOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  driverAssignments DriverAssignment[]
+  rides             Ride[]
+  expenses          Expense[]
+  fuelLogs          FuelLog[]
+  settlements       Settlement[]
+
+  @@index([ownerId])
+  @@index([isActive])
+  @@map("vehicles")
+}
+
+model DriverAssignment {
+  id            String     @id @default(uuid())
+  driverId      String
+  vehicleId     String
+  ownerId       String
+  salaryType    SalaryType @default(FIXED)
+  salaryAmount  Decimal    @db.Decimal(10, 2)
+  hybridBase    Decimal?   @db.Decimal(10, 2)
+  hybridPercent Decimal?   @db.Decimal(5, 2)
+  startDate     DateTime   @db.Date
+  endDate       DateTime?  @db.Date
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+
+  driver  User    @relation("AssignmentDriver", fields: [driverId],  references: [id], onDelete: Restrict)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id],   onDelete: Restrict)
+  owner   User    @relation("AssignmentOwner",  fields: [ownerId],   references: [id], onDelete: Restrict)
+
+  @@unique([driverId, vehicleId, isActive])
+  @@index([vehicleId, isActive])
+  @@index([ownerId])
+  @@map("driver_assignments")
+}
+
+model Ride {
+  id          String      @id @default(uuid())
+  vehicleId   String
+  driverId    String
+  platform    Platform
+  fareAmount  Decimal     @db.Decimal(10, 2)
+  paymentType PaymentType @default(CASH)
+  pickupArea  String?
+  dropoffArea String?
+  isDisputed  Boolean     @default(false)
+  rideTime    DateTime
+  loggedAt    DateTime    @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver  User    @relation("RideDriver", fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([vehicleId, rideTime])
+  @@index([driverId,  rideTime])
+  @@index([rideTime])
+  @@map("rides")
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  vehicleId   String
+  loggedBy    String
+  category    ExpenseCategory @default(OTHER)
+  amount      Decimal         @db.Decimal(10, 2)
+  note        String?         @db.Text
+  receiptUrl  String?
+  status      ExpenseStatus   @default(PENDING)
+  date        DateTime
+  createdAt   DateTime        @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  logger  User    @relation("ExpenseLogger", fields: [loggedBy], references: [id], onDelete: Restrict)
+
+  @@index([vehicleId, status])
+  @@index([vehicleId, date])
+  @@index([loggedBy,  status])
+  @@map("expenses")
+}
+
+model FuelLog {
+  id        String   @id @default(uuid())
+  vehicleId String
+  driverId  String
+  amountPkr Decimal  @db.Decimal(10, 2)
+  litres    Decimal  @db.Decimal(6, 2)
+  odometer  Int?
+  pumpName  String?
+  date      DateTime
+  createdAt DateTime @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver  User    @relation("FuelDriver", fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([vehicleId, date])
+  @@index([driverId,  date])
+  @@map("fuel_logs")
+}
+
+model Settlement {
+  id            String           @id @default(uuid())
+  ownerId       String
+  driverId      String
+  vehicleId     String
+  periodStart   DateTime         @db.Date
+  periodEnd     DateTime         @db.Date
+  totalRevenue  Decimal          @db.Decimal(12, 2)
+  totalExpenses Decimal          @db.Decimal(12, 2)
+  driverSalary  Decimal          @db.Decimal(10, 2)
+  ownerProfit   Decimal          @db.Decimal(12, 2)
+  status        SettlementStatus @default(PENDING)
+  settledAt     DateTime?
+  createdAt     DateTime         @default(now())
+
+  owner   User    @relation("SettlementOwner",  fields: [ownerId],   references: [id], onDelete: Restrict)
+  driver  User    @relation("SettlementDriver", fields: [driverId],  references: [id], onDelete: Restrict)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id],   onDelete: Restrict)
+
+  @@unique([vehicleId, periodStart])
+  @@index([ownerId,  status])
+  @@index([driverId, status])
+  @@map("settlements")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String   @db.Text
+  isRead    Boolean  @default(false)
+  data      Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}

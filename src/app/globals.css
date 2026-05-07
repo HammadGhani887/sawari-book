@@ -2,26 +2,110 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --font-inter: "Inter", system-ui, sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: #0F172A;
+    color: #F1F5F9;
+    font-family: var(--font-inter);
+    overscroll-behavior: none;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #1E293B;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 2px;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .card {
+    @apply bg-brand-surface rounded-2xl p-4;
+  }
+
+  .card-elevated {
+    @apply bg-brand-elevated rounded-2xl p-4;
+  }
+
+  .btn-primary {
+    @apply bg-accent-green text-white font-semibold rounded-xl px-6 py-3 active:scale-95 transition-transform;
+  }
+
+  .btn-secondary {
+    @apply bg-brand-elevated text-white font-semibold rounded-xl px-6 py-3 active:scale-95 transition-transform;
+  }
+
+  .input-field {
+    @apply bg-brand-elevated border border-brand-elevated focus:border-accent-green rounded-xl px-4 py-3 text-white placeholder-slate-500 outline-none w-full transition-colors;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Page fade-in on mount */
+  .animate-fadeIn {
+    animation: fadeIn 200ms ease-out both;
+  }
+
+  /* Success checkmark pop */
+  .animate-scaleIn {
+    animation: scaleIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  /* Card hover lift */
+  .card-hover {
+    @apply transition-all duration-200 hover:scale-[1.01] hover:shadow-lg;
+  }
+
+  /* Toast colored border helpers */
+  .toast-success {
+    border-left: 4px solid #10B981 !important;
+  }
+  .toast-error {
+    border-left: 4px solid #EF4444 !important;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
 }
