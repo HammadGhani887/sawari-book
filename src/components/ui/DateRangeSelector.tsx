@@ -31,8 +31,8 @@ export default function DateRangeSelector({
               "flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium",
               "transition-all active:scale-95",
               isActive
-                ? "bg-accent-green text-white"
-                : "bg-brand-surface text-slate-400 border border-slate-700",
+                ? "bg-accent-green text-white shadow-sm"
+                : "bg-white text-slate-600 border border-slate-200 shadow-sm",
             ].join(" ")}
           >
             {label}

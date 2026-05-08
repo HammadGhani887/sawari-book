@@ -46,9 +46,9 @@ export default function NumericKeypad({
   return (
     <div className="w-full max-w-[360px] mx-auto flex flex-col gap-3">
       {/* Display area */}
-      <div className={`bg-brand-surface rounded-2xl px-6 flex items-baseline justify-center gap-2 ${compact ? "py-3" : "py-5"}`}>
+      <div className={`bg-white border border-slate-200 shadow-sm rounded-2xl px-6 flex items-baseline justify-center gap-2 ${compact ? "py-3" : "py-5"}`}>
         <span className="text-2xl font-medium text-slate-500 select-none">₨</span>
-        <span className="text-5xl font-bold text-white tabular-nums tracking-tight leading-none">
+        <span className="text-5xl font-bold text-slate-900 tabular-nums tracking-tight leading-none">
           {Number(displayValue).toLocaleString("en-PK")}
         </span>
       </div>
@@ -65,12 +65,12 @@ export default function NumericKeypad({
                 type="button"
                 onClick={() => handleKey(key)}
                 className={[
-                  `${compact ? "h-12" : "h-14"} rounded-xl text-xl font-semibold text-white`,
-                  "bg-brand-surface border border-slate-700/30",
-                  "hover:bg-brand-elevated active:bg-slate-600",
+                  `${compact ? "h-12" : "h-14"} rounded-xl text-xl font-semibold text-slate-900`,
+                  "bg-white border border-slate-200 shadow-sm",
+                  "hover:bg-slate-50 active:bg-slate-200",
                   "transition-colors select-none",
                   "flex items-center justify-center",
-                  isBackspace ? "text-slate-400" : "",
+                  isBackspace ? "text-slate-600" : "",
                 ].join(" ")}
               >
                 {isBackspace ? <Delete size={20} /> : key}

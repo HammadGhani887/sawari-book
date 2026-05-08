@@ -48,7 +48,7 @@ export default function KPICard({
           )}
         </div>
 
-        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-1 truncate">
+        <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider mt-1 truncate">
           {label}
         </p>
         {labelUrdu && (

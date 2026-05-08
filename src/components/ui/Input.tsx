@@ -36,11 +36,11 @@ export default function Input({
     : "focus:ring-accent-green focus:border-accent-green";
 
   const baseInputClass = [
-    "w-full bg-brand-surface text-white placeholder-slate-500",
+    "w-full bg-white text-slate-900 placeholder-slate-400 shadow-sm",
     "border rounded-xl py-3 text-sm outline-none",
     "transition-all ring-0 focus:ring-2 ring-offset-0",
     "disabled:opacity-50 disabled:cursor-not-allowed",
-    error ? "border-status-red" : "border-slate-700",
+    error ? "border-status-red" : "border-slate-200",
     focusRing,
     prefix ? "pl-12 pr-4" : "px-4",
   ]
@@ -52,7 +52,7 @@ export default function Input({
       {(label || labelUrdu) && (
         <div className="flex flex-col gap-0.5">
           {label && (
-            <label className="text-sm font-medium text-white">{label}</label>
+            <label className="text-sm font-medium text-slate-900">{label}</label>
           )}
           {labelUrdu && (
             <span className="text-xs text-slate-500 font-[system-ui]" dir="rtl">
@@ -64,8 +64,8 @@ export default function Input({
 
       <div className="relative">
         {prefix && (
-          <div className="absolute left-0 top-0 bottom-0 flex items-center justify-center w-11 bg-brand-elevated rounded-l-xl border-r border-slate-700">
-            <span className="text-slate-400 text-sm font-medium select-none">
+          <div className="absolute left-0 top-0 bottom-0 flex items-center justify-center w-11 bg-brand-elevated rounded-l-xl border-r border-slate-200">
+            <span className="text-slate-600 text-sm font-medium select-none">
               {prefix}
             </span>
           </div>

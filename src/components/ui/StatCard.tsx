@@ -15,7 +15,7 @@ const accentMap = {
 export default function StatCard({ label, value, sub, accent = "green" }: StatCardProps) {
   return (
     <div className="card flex flex-col gap-1">
-      <span className="text-slate-400 text-xs">{label}</span>
+      <span className="text-slate-600 text-xs">{label}</span>
       <span className={`text-2xl font-bold ${accentMap[accent].split(" ")[0]}`}>{value}</span>
       {sub && <span className="text-slate-500 text-xs">{sub}</span>}
     </div>

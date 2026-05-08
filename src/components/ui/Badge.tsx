@@ -28,13 +28,13 @@ const DEFAULT_LABELS: Record<BadgeType, string> = {
 
 const TYPE_CLASSES: Record<BadgeType, string> = {
   active:   "bg-accent-greenDim text-accent-green",
-  inactive: "bg-slate-700/50 text-slate-400",
+  inactive: "bg-slate-700/50 text-slate-600",
   pending:  "bg-status-amberDim text-status-amber",
   approved: "bg-accent-greenDim text-accent-green",
   rejected: "bg-status-redDim text-status-red",
   disputed: "bg-status-redDim text-status-red",
   settled:  "bg-accent-blueDim text-accent-blue",
-  cash:     "bg-slate-700 text-slate-300",
+  cash:     "bg-slate-700 text-slate-700",
   wallet:   "bg-accent-blueDim text-accent-blue",
 };
 

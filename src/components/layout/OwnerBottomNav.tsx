@@ -1,12 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Car, BarChart3, Settings } from "lucide-react";
+import { LayoutDashboard, Car, Users, BarChart3, Settings } from "lucide-react";
 import BottomNav from "@/components/ui/BottomNav";
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: <LayoutDashboard size={22} />, label: "Dashboard" },
   { href: "/vehicles",  icon: <Car size={22} />,             label: "Vehicles"  },
+  { href: "/drivers",   icon: <Users size={22} />,           label: "Drivers"   },
   { href: "/reports",   icon: <BarChart3 size={22} />,       label: "Reports"   },
   { href: "/settings",  icon: <Settings size={22} />,        label: "Settings"  },
 ];

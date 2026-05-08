@@ -10,14 +10,14 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          bg: "#0F172A",
-          surface: "#1E293B",
-          elevated: "#334155",
+          bg: "#F0F4F8", // Light blue background
+          surface: "#FFFFFF", // White surface
+          elevated: "#F8FAFC", // Slightly off-white for elevated elements
         },
         accent: {
-          green: "#10B981",
-          greenDim: "rgba(16,185,129,0.12)",
-          blue: "#3B82F6",
+          green: "#2563EB", // We changed this to Blue to match the Blue & White theme, but kept the variable name to avoid refactoring all components.
+          greenDim: "rgba(37,99,235,0.12)",
+          blue: "#3B82F6", // Lighter blue for drivers
           blueDim: "rgba(59,130,246,0.12)",
         },
         status: {

@@ -50,11 +50,11 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
 
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700/50">
-            <h2 className="text-base font-bold text-white">{title}</h2>
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200/50">
+            <h2 className="text-base font-bold text-slate-900">{title}</h2>
             <button
               onClick={onClose}
-              className="flex items-center justify-center w-8 h-8 rounded-full bg-brand-elevated text-slate-400 hover:text-white transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-brand-elevated text-slate-600 hover:text-slate-900 transition-colors"
             >
               <X size={16} />
             </button>

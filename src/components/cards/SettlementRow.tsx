@@ -11,8 +11,8 @@ const TYPE_CONFIG: Record<
   { labelClass: string; amountClass: string; prefix: string; large: boolean }
 > = {
   revenue: {
-    labelClass: "text-slate-300",
-    amountClass: "text-white",
+    labelClass: "text-slate-700",
+    amountClass: "text-slate-900",
     prefix: "",
     large: false,
   },
@@ -35,8 +35,8 @@ const TYPE_CONFIG: Record<
     large: true,
   },
   neutral: {
-    labelClass: "text-slate-400",
-    amountClass: "text-white",
+    labelClass: "text-slate-600",
+    amountClass: "text-slate-900",
     prefix: "",
     large: false,
   },
@@ -54,7 +54,7 @@ export default function SettlementRow({
       : amount;
 
   return (
-    <div className="flex items-center justify-between py-2.5 border-b border-slate-700/30 last:border-0">
+    <div className="flex items-center justify-between py-2.5 border-b border-slate-200/30 last:border-0">
       <span className={`text-sm ${cfg.labelClass}`}>{label}</span>
       <span
         className={[

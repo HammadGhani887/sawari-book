@@ -96,13 +96,13 @@ export default function AddDriverPage() {
 
         {/* 5 — Assign Vehicle */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-white">Assign Vehicle</label>
+          <label className="text-sm font-medium text-slate-900">Assign Vehicle</label>
           <span className="text-xs text-slate-500 font-[system-ui]" dir="rtl">گاڑی تفویض کریں</span>
           <div className="relative mt-0.5">
             <select
               value={vehicleId}
               onChange={(e) => setVehicleId(e.target.value)}
-              className="w-full appearance-none bg-brand-surface text-sm text-white border border-slate-700 rounded-xl py-3 pl-4 pr-10 outline-none focus:ring-2 focus:ring-accent-green focus:border-accent-green"
+              className="w-full appearance-none bg-brand-surface text-sm text-slate-900 border border-slate-200 rounded-xl py-3 pl-4 pr-10 outline-none focus:ring-2 focus:ring-accent-green focus:border-accent-green"
             >
               <option value="">Assign Later</option>
               {vehicles.map((v) => (
@@ -117,7 +117,7 @@ export default function AddDriverPage() {
 
         {/* 6 — Salary Structure */}
         <div>
-          <p className="text-sm font-medium text-white mb-0.5">Salary Structure</p>
+          <p className="text-sm font-medium text-slate-900 mb-0.5">Salary Structure</p>
           <p className="text-xs text-slate-500 mb-3 font-[system-ui]" dir="rtl">تنخواہ کا طریقہ</p>
 
           <div className="flex flex-col gap-3">
@@ -128,7 +128,7 @@ export default function AddDriverPage() {
                   key={id}
                   className={[
                     "border-2 rounded-2xl overflow-hidden transition-colors",
-                    isSelected ? "border-accent-green" : "border-slate-700",
+                    isSelected ? "border-accent-green" : "border-slate-200",
                   ].join(" ")}
                 >
                   <button
@@ -136,7 +136,7 @@ export default function AddDriverPage() {
                     onClick={() => setSalaryType(isSelected ? null : id)}
                     className="w-full flex items-center justify-between px-4 h-14 bg-brand-surface"
                   >
-                    <span className={`text-sm font-semibold ${isSelected ? "text-accent-green" : "text-white"}`}>
+                    <span className={`text-sm font-semibold ${isSelected ? "text-accent-green" : "text-slate-900"}`}>
                       {label}
                     </span>
                     {isSelected
@@ -146,7 +146,7 @@ export default function AddDriverPage() {
                   </button>
 
                   {isSelected && (
-                    <div className="px-4 pb-4 pt-2 bg-brand-surface border-t border-slate-700/50 flex flex-col gap-3">
+                    <div className="px-4 pb-4 pt-2 bg-brand-surface border-t border-slate-200/50 flex flex-col gap-3">
                       {id === "fixed" && (
                         <Input label="Monthly Amount (₨)" type="number" value={fixedAmount}  onChange={setFixedAmount}  placeholder="e.g. 25000" />
                       )}

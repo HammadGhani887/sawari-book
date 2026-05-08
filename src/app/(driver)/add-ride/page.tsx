@@ -9,8 +9,12 @@ import { LAHORE_AREAS } from "@/lib/constants/areas";
 import { formatCurrency } from "@/lib/utils/format";
 import { useRideStore } from "@/lib/store/rideStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
-import { useVehicleSettingsStore } from "@/lib/store/vehicleSettingsStore";
+import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
+import { useDailySnapshotStore } from "@/lib/store/dailySnapshotStore";
+import { useExpenseStore } from "@/lib/store/expenseStore";
+import { useNotificationStore } from "@/lib/store/notificationStore";
+import { useAuthStore } from "@/lib/store/authStore";
 import { saveRideOffline } from "@/hooks/useOfflineQueue";
 import type { PlatformId, PaymentType } from "@/lib/types";
 
@@ -23,11 +27,21 @@ const PLATFORM_OPTIONS = [
 export default function AddRidePage() {
   const router          = useRouter();
   const addRide         = useRideStore((s) => s.addRide);
+  const allRides        = useRideStore((s) => s.rides);
   const driver          = useCurrentDriver();
   const fuelLogs        = useFuelStore((s) => s.fuelLogs);
-  const estimateFuel    = useVehicleSettingsStore((s) => s.estimateFuelCost);
-  const effectiveAvg    = useVehicleSettingsStore((s) => s.getEffectiveAverage)(fuelLogs);
-  const petrolPrice     = useVehicleSettingsStore((s) => s.petrolPricePkrL);
+  const allExpenses     = useExpenseStore((s) => s.expenses);
+  const estimateFuel    = useVehicleStore((s) => s.estimateFuelCost);
+  const getEffective    = useVehicleStore((s) => s.getEffectiveAverage);
+  const getPetrolPrice  = useVehicleStore((s) => s.getPetrolPrice);
+  const getFuelAverage  = useVehicleStore((s) => s.getFuelAverage);
+  const upsertSnapshot  = useDailySnapshotStore((s) => s.upsertSnapshot);
+  const addNotif        = useNotificationStore((s) => s.addNotification);
+  const driverName      = useAuthStore((s) => s.user?.name ?? "Driver");
+  const ownerId         = useVehicleStore((s) => s.vehicles.find((v) => v.id === driver?.vehicleId)?.ownerId ?? "");
+  const vid             = driver?.vehicleId ?? "";
+  const effectiveAvg    = getEffective(vid, fuelLogs);
+  const petrolPrice     = getPetrolPrice(vid);
 
   const [platform,   setPlatform]   = useState<PlatformId | null>(null);
   const [fare,       setFare]       = useState("");
@@ -35,10 +49,12 @@ export default function AddRidePage() {
   const [pickup,     setPickup]     = useState("");
   const [drop,       setDrop]       = useState("");
   const [distanceKm, setDistanceKm] = useState("");
+  const [boostCost,  setBoostCost]  = useState("");
   const [areaModal,  setAreaModal]  = useState<"pickup" | "drop" | null>(null);
   const [areaSearch, setAreaSearch] = useState("");
   const [saving,     setSaving]     = useState(false);
   const [success,    setSuccess]    = useState(false);
+  const [savedProfit, setSavedProfit] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const canSubmit      = platform !== null && Number(fare) > 0;
@@ -75,18 +91,30 @@ export default function AddRidePage() {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 300));
 
+    const fareNum  = Number(fare);
+    const distNum  = distanceKm ? Number(distanceKm) : undefined;
+    const estFuel  = distNum ? estimateFuel(vid, distNum, fuelLogs) : undefined;
+    const boostNum = boostCost ? Number(boostCost) : undefined;
+
     const rideData = {
-      vehicleId:   driver?.vehicleId ?? "v1",
-      driverId:    driver?.id ?? "d1",
+      vehicleId:          driver?.vehicleId ?? "",
+      driverId:           driver?.id ?? "",
       platform,
-      fareAmount:  Number(fare),
-      paymentType: payment,
-      pickupArea:  pickup  || undefined,
-      dropoffArea: drop    || undefined,
-      distanceKm:  distanceKm ? Number(distanceKm) : undefined,
-      isDisputed:  false,
-      rideTime:    new Date().toISOString(),
+      fareAmount:         fareNum,
+      paymentType:        payment,
+      pickupArea:         pickup  || undefined,
+      dropoffArea:        drop    || undefined,
+      distanceKm:         distNum,
+      estimatedFuelCost:  estFuel,
+      boostCost:          boostNum,
+      isDisputed:         false,
+      rideTime:           new Date().toISOString(),
     };
+
+    // Net profit = fare - fuel - boost
+    const totalDeductions = (estFuel ?? 0) + (boostNum ?? 0);
+    const profit = (estFuel !== undefined || boostNum !== undefined) ? fareNum - totalDeductions : null;
+    setSavedProfit(profit);
 
     if (!navigator.onLine) {
       saveRideOffline(rideData);
@@ -96,6 +124,43 @@ export default function AddRidePage() {
       });
     } else {
       addRide(rideData);
+
+      // Notify owner about new ride
+      if (ownerId) {
+        const platformLabel = platform === "indrive" ? "inDrive" : platform === "yango" ? "Yango" : "Other";
+        addNotif({
+          userId: ownerId,
+          type:   "ride_logged",
+          title:  `${driverName} logged ₨${fareNum.toLocaleString()} on ${platformLabel}`,
+          body:   [pickup, drop].filter(Boolean).join(" → ") || "",
+        });
+      }
+
+      // Save daily snapshot after adding ride
+      if (vid && driver?.id) {
+        const today = new Date().toISOString().slice(0, 10);
+        const todayRides = [...allRides, { ...rideData, id: "new", loggedAt: new Date().toISOString() }]
+          .filter((r) => r.vehicleId === vid && r.rideTime.startsWith(today));
+        const todayFuel = fuelLogs
+          .filter((f) => f.vehicleId === vid && f.date.startsWith(today));
+        const todayExpenses = allExpenses
+          .filter((e) => e.vehicleId === vid && e.status === "approved" && e.date.startsWith(today));
+        const totalRevenue  = todayRides.reduce((s, r) => s + r.fareAmount, 0);
+        const totalFuelCost = todayFuel.reduce((s, f) => s + f.amountPkr, 0);
+        const totalExpenses = todayExpenses.reduce((s, e) => s + e.amount, 0);
+        upsertSnapshot({
+          vehicleId:       vid,
+          driverId:        driver.id,
+          date:            today,
+          petrolPricePkrL: getPetrolPrice(vid),
+          fuelAverageKmL:  getFuelAverage(vid),
+          totalRides:      todayRides.length,
+          totalRevenue,
+          totalFuelCost,
+          totalExpenses,
+          netProfit:       totalRevenue - totalFuelCost - totalExpenses,
+        });
+      }
     }
 
     setSaving(false);
@@ -106,14 +171,14 @@ export default function AddRidePage() {
     <div className="flex flex-col min-h-full bg-brand-bg">
 
       {/* ── Sticky header ── */}
-      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-slate-700/50 bg-brand-bg shrink-0">
+      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-slate-200/50 bg-brand-bg shrink-0">
         <div>
-          <p className="text-base font-bold text-white leading-snug">Add Ride</p>
+          <p className="text-base font-bold text-slate-900 leading-snug">Add Ride</p>
           <p className="text-[11px] text-slate-500 leading-snug" dir="rtl">سواری درج کریں</p>
         </div>
         <button
           onClick={() => router.push("/home")}
-          className="w-8 h-8 rounded-full bg-brand-elevated flex items-center justify-center text-slate-400 active:text-white transition-colors"
+          className="w-8 h-8 rounded-full bg-brand-elevated flex items-center justify-center text-slate-600 active:text-slate-900 transition-colors"
         >
           <X size={16} />
         </button>
@@ -145,7 +210,7 @@ export default function AddRidePage() {
                     </span>
                   )}
                   <span className="w-4 h-4 rounded-full" style={{ backgroundColor: p.color }} />
-                  <span className="text-[11px] font-semibold text-white leading-none">{p.name}</span>
+                  <span className={["text-[11px] font-semibold leading-none", isSelected ? "text-slate-900" : "text-slate-300"].join(" ")}>{p.name}</span>
                 </button>
               );
             })}
@@ -171,7 +236,7 @@ export default function AddRidePage() {
                 onClick={() => setPayment(type)}
                 className={[
                   "flex-1 py-2.5 rounded-xl text-sm font-semibold text-center border-2 transition-all",
-                  payment === type ? active : "bg-brand-surface border-transparent text-slate-400",
+                  payment === type ? active : "bg-brand-surface border-transparent text-slate-600",
                 ].join(" ")}
               >
                 {label}
@@ -197,7 +262,7 @@ export default function AddRidePage() {
                 className={[
                   "flex-1 py-2.5 px-3 rounded-xl text-sm border-2 border-transparent text-left transition-all",
                   "bg-brand-surface active:scale-[0.98]",
-                  value ? "text-white border-slate-600" : "text-slate-500",
+                  value ? "text-slate-900 border-slate-600" : "text-slate-500",
                 ].join(" ")}
               >
                 <div className="flex items-center gap-1.5">
@@ -217,7 +282,7 @@ export default function AddRidePage() {
             <span className="text-[10px] text-slate-600">— optional, km</span>
             <span className="text-[9px] text-slate-600 font-[system-ui]" dir="rtl">فاصلہ</span>
           </div>
-          <div className="flex items-center bg-brand-surface border-2 border-transparent focus-within:border-accent-blue rounded-xl px-4 py-3 transition-all">
+          <div className="flex items-center bg-white border border-slate-200 shadow-sm focus-within:border-accent-blue rounded-xl px-4 py-3 transition-all">
             <input
               type="number"
               inputMode="decimal"
@@ -226,7 +291,7 @@ export default function AddRidePage() {
               value={distanceKm}
               onChange={(e) => setDistanceKm(e.target.value)}
               placeholder="e.g. 12.5"
-              className="flex-1 bg-transparent text-white text-sm placeholder:text-slate-600 outline-none"
+              className="flex-1 bg-transparent text-slate-900 text-sm placeholder:text-slate-600 outline-none"
             />
             <span className="text-slate-500 text-sm font-medium ml-2">km</span>
           </div>
@@ -241,20 +306,49 @@ export default function AddRidePage() {
               )}
               <p className="text-[11px] text-slate-500">
                 Est. fuel: <span className="text-status-amber font-semibold">
-                  Rs {estimateFuel(Number(distanceKm), fuelLogs)}
+                  Rs {estimateFuel(vid, Number(distanceKm), fuelLogs)}
                 </span>
                 <span className="text-slate-600"> ({effectiveAvg} km/L @ Rs {petrolPrice}/L)</span>
               </p>
               {Number(fare) > 0 && (
                 <p className="text-[11px] text-slate-500">
-                  Net: <span className="text-white font-semibold">
-                    Rs {Number(fare) - estimateFuel(Number(distanceKm), fuelLogs)}
+                  Net: <span className="text-slate-900 font-semibold">
+                    Rs {Number(fare) - estimateFuel(vid, Number(distanceKm), fuelLogs)}
                   </span>
                 </p>
               )}
             </div>
           )}
         </div>
+
+        {/* Boost / Pop-up cost — only for inDrive and Yango */}
+        {(platform === "indrive" || platform === "yango") && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Boost / Pop-up Cost</p>
+              <span className="text-[10px] text-slate-600">— optional</span>
+              <span className="text-[9px] text-slate-600 font-[system-ui]" dir="rtl">بوسٹ</span>
+            </div>
+            <div className="flex items-center bg-white border border-slate-200 shadow-sm focus-within:border-accent-blue rounded-xl px-4 py-3 transition-all">
+              <span className="text-slate-500 text-sm mr-2">Rs</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="10"
+                value={boostCost}
+                onChange={(e) => setBoostCost(e.target.value)}
+                placeholder="e.g. 100"
+                className="flex-1 bg-transparent text-slate-900 text-sm placeholder:text-slate-600 outline-none"
+              />
+            </div>
+            {Number(boostCost) > 0 && Number(fare) > 0 && (
+              <p className="text-[11px] text-slate-500 mt-1.5 px-1">
+                Boost deducted from profit: <span className="text-status-red font-semibold">− {formatCurrency(Number(boostCost))}</span>
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Save button */}
         <div className="pt-2">
@@ -284,10 +378,10 @@ export default function AddRidePage() {
               if (e.key === "Enter" && areaSearch.trim()) selectArea(areaSearch.trim());
             }}
             placeholder="Search or type custom location…"
-            className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 outline-none"
+            className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-500 outline-none"
           />
           {areaSearch && (
-            <button onClick={() => setAreaSearch("")} className="text-slate-500 active:text-white">
+            <button onClick={() => setAreaSearch("")} className="text-slate-500 active:text-slate-900">
               <X size={14} />
             </button>
           )}
@@ -326,7 +420,7 @@ export default function AddRidePage() {
                 onClick={() => selectArea(area.name)}
                 className={[
                   "flex items-center justify-between w-full px-3 py-3 rounded-xl transition-colors text-left",
-                  isActive ? "bg-accent-blueDim text-white" : "text-slate-300 active:bg-brand-elevated",
+                  isActive ? "bg-accent-blueDim text-slate-900 font-bold" : "text-slate-700 active:bg-brand-elevated",
                 ].join(" ")}
               >
                 <span className="text-sm font-medium">{area.name}</span>
@@ -339,18 +433,54 @@ export default function AddRidePage() {
 
       {/* ── Success overlay ── */}
       {success && (
-        <div className="fixed inset-0 z-50 bg-brand-bg/95 flex flex-col items-center justify-center gap-5">
+        <div className="fixed inset-0 z-50 bg-white/98 flex flex-col items-center justify-center gap-5 px-6">
           <div className="w-24 h-24 rounded-full bg-accent-greenDim flex items-center justify-center animate-scaleIn">
             <CheckCircle2 size={56} className="text-accent-green" />
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-white">Ride Saved!</p>
-            <p className="text-slate-400 text-sm mt-2">
+            <p className="text-2xl font-bold text-slate-900">Ride Saved!</p>
+            <p className="text-slate-500 text-sm mt-1">
               {formatCurrency(Number(fare))}
               {selectedPlatform && ` · ${selectedPlatform.name}`}
               {` · ${payment === "cash" ? "Cash" : "Wallet"}`}
               {distanceKm && ` · ${distanceKm} km`}
             </p>
+          </div>
+
+          {/* Profit breakdown */}
+          <div className="w-full max-w-xs bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-600">Fare</span>
+              <span className="text-sm font-semibold text-slate-900">{formatCurrency(Number(fare))}</span>
+            </div>
+            {Number(boostCost) > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600">Boost / Pop-up</span>
+                <span className="text-sm font-semibold text-status-red">− {formatCurrency(Number(boostCost))}</span>
+              </div>
+            )}
+            {savedProfit !== null && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Est. Fuel Cost</span>
+                  <span className="text-sm font-semibold text-status-amber">
+                    − {formatCurrency((Number(fare) - savedProfit) - Number(boostCost || 0))}
+                  </span>
+                </div>
+                <div className="h-px bg-slate-200" />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-900">Net Profit</span>
+                  <span className={`text-lg font-bold ${savedProfit >= 0 ? "text-accent-green" : "text-status-red"}`}>
+                    {formatCurrency(savedProfit)}
+                  </span>
+                </div>
+              </>
+            )}
+            {savedProfit === null && (
+              <p className="text-xs text-slate-400 text-center mt-1">
+                Add distance to see fuel cost & profit
+              </p>
+            )}
           </div>
         </div>
       )}

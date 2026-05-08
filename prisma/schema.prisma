@@ -3,7 +3,10 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  // Switch between "postgresql" (Neon/Vercel) and "mysql" (Namecheap)
+  // Change only this one word when migrating
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ── Enums ──────────────────────────────────────────────────────────────────────

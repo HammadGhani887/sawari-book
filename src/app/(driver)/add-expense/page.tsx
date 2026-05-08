@@ -8,11 +8,21 @@ import { ScreenHeader, NumericKeypad, Input, Button } from "@/components/ui";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
+import { useNotificationStore } from "@/lib/store/notificationStore";
+import { useAuthStore } from "@/lib/store/authStore";
+import { useVehicleStore } from "@/lib/store/vehicleStore";
+import { saveExpenseOffline } from "@/hooks/useOfflineQueue";
 
 export default function DriverAddExpensePage() {
   const router      = useRouter();
   const addExpense  = useExpenseStore((s) => s.addExpense);
   const driver      = useCurrentDriver();
+  const addNotif    = useNotificationStore((s) => s.addNotification);
+  const ownerId     = useVehicleStore((s) => {
+    const v = s.vehicles.find((v) => v.id === driver?.vehicleId);
+    return v?.ownerId ?? "";
+  });
+  const driverName  = useAuthStore((s) => s.user?.name ?? "Driver");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [category,       setCategory]       = useState<string | null>(null);
@@ -38,16 +48,36 @@ export default function DriverAddExpensePage() {
     if (!canSubmit || !category) return;
     setSaving(true);
     await new Promise((r) => setTimeout(r, 400));
-    addExpense({
-      vehicleId: driver?.vehicleId ?? "v1",
-      loggedBy:  driver?.id ?? "d1",
+    const expenseData = {
+      vehicleId: driver?.vehicleId ?? "",
+      loggedBy:  driver?.id ?? "",
       category,
       amount:    Number(amount),
       note:      note || undefined,
-      status:    "pending",
+      status:    "pending" as const,
       date:      new Date().toISOString(),
-    });
-    toast.success("Expense submitted ✓ Waiting for approval");
+    };
+
+    if (!navigator.onLine) {
+      saveExpenseOffline(expenseData);
+      toast("Expense saved offline. Will sync when connected.", {
+        icon: "📶",
+        style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
+      });
+    } else {
+      addExpense(expenseData);
+      // Notify owner
+      if (ownerId) {
+        const catLabel = EXPENSE_CATEGORIES.find((c) => c.id === category)?.name ?? category;
+        addNotif({
+          userId: ownerId,
+          type:   "expense_pending",
+          title:  `Expense pending: ${catLabel} ₨${Number(amount).toLocaleString()}`,
+          body:   `${driverName} submitted — needs your approval`,
+        });
+      }
+      toast.success("Expense submitted ✓ Waiting for approval");
+    }
     router.back();
   }
 
@@ -67,7 +97,7 @@ export default function DriverAddExpensePage() {
 
         {/* Category grid */}
         <div>
-          <p className="text-sm font-medium text-white mb-2">Category</p>
+          <p className="text-sm font-medium text-slate-900 mb-2">Category</p>
           <div className="grid grid-cols-4 gap-2">
             {EXPENSE_CATEGORIES.map((cat) => {
               const isSelected = category === cat.id;
@@ -82,7 +112,7 @@ export default function DriverAddExpensePage() {
                   ].join(" ")}
                 >
                   <span className="text-2xl leading-none">{cat.emoji}</span>
-                  <span className={`text-[9px] font-semibold leading-tight text-center px-0.5 ${isSelected ? "text-accent-blue" : "text-slate-400"}`}>
+                  <span className={`text-[9px] font-semibold leading-tight text-center px-0.5 ${isSelected ? "text-accent-blue" : "text-slate-600"}`}>
                     {cat.name}
                   </span>
                 </button>
@@ -92,7 +122,7 @@ export default function DriverAddExpensePage() {
         </div>
 
         <div>
-          <p className="text-sm font-medium text-white mb-2">Amount (PKR)</p>
+          <p className="text-sm font-medium text-slate-900 mb-2">Amount (PKR)</p>
           <NumericKeypad value={amount} onChange={setAmount} compact maxLength={6} />
         </div>
 
@@ -100,20 +130,20 @@ export default function DriverAddExpensePage() {
 
         {/* Receipt photo */}
         <div>
-          <p className="text-sm font-medium text-white mb-2">Receipt Photo</p>
+          <p className="text-sm font-medium text-slate-900 mb-2">Receipt Photo</p>
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
           {receiptPreview ? (
-            <div className="relative rounded-xl overflow-hidden border border-slate-700">
+            <div className="relative rounded-xl overflow-hidden border border-slate-200">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={receiptPreview} alt="Receipt" className="w-full max-h-48 object-cover" />
-              <button onClick={handleRemoveReceipt} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center text-white">
+              <button onClick={handleRemoveReceipt} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-slate-900 hover:bg-white transition-colors shadow-sm">
                 <X size={14} />
               </button>
             </div>
           ) : (
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-slate-600 rounded-xl p-6 flex flex-col items-center gap-2 text-slate-500 hover:border-slate-500 hover:text-slate-400 active:scale-[0.98] transition-all"
+              className="w-full border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center gap-2 text-slate-500 hover:border-slate-400 hover:text-slate-600 active:scale-[0.98] transition-all bg-brand-surface"
             >
               <Camera size={28} strokeWidth={1.5} />
               <span className="text-sm font-medium">Add receipt photo</span>

@@ -10,11 +10,13 @@ export type SettlementStatus = "pending" | "settled";
 export interface User {
   id: string;
   phone: string;
+  email?: string;
   name: string;
   role: UserRole;
   language: Language;
   photoUrl?: string;
   cnic?: string;
+  licenseImageUrl?: string;
   createdAt: string;
 }
 
@@ -27,6 +29,9 @@ export interface Vehicle {
   platforms: string[];
   insuranceExpiry?: string;
   photoUrl?: string;
+  tankCapacityLitres?: number;
+  fuelAverageKmL?: number;      // manual km/L average for this vehicle
+  petrolPricePkrL?: number;     // current petrol price PKR/L for this vehicle
   isActive: boolean;
 }
 
@@ -54,6 +59,8 @@ export interface Ride {
   pickupArea?: string;
   dropoffArea?: string;
   distanceKm?: number;
+  estimatedFuelCost?: number;   // calculated at save time: (distanceKm / avg) * price
+  boostCost?: number;           // inDrive/Yango boost/pop-up cost for this ride
   isDisputed: boolean;
   rideTime: string;
   loggedAt: string;
@@ -79,6 +86,7 @@ export interface FuelLog {
   litres: number;
   odometer?: number;
   pumpName?: string;
+  receiptUrl?: string;
   date: string;
 }
 
@@ -113,4 +121,18 @@ export interface DashboardStats {
   totalExpenses: number;
   netProfit: number;
   weeklyData: { day: string; revenue: number }[];
+}
+
+export interface DailySnapshot {
+  id: string;
+  vehicleId: string;
+  driverId: string;
+  date: string;                  // "YYYY-MM-DD"
+  petrolPricePkrL: number;       // price recorded that day
+  fuelAverageKmL: number;        // average recorded that day
+  totalRides: number;
+  totalRevenue: number;
+  totalFuelCost: number;         // sum of fuel logs that day
+  totalExpenses: number;         // approved expenses that day
+  netProfit: number;             // revenue - fuelCost - expenses
 }
