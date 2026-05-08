@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "react-hot-toast";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import InstallBanner from "@/components/layout/InstallBanner";
@@ -7,7 +7,14 @@ import OfflineSyncProvider from "@/components/layout/OfflineSyncProvider";
 import StoreCleaner from "@/components/layout/StoreCleaner";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+// Use local Geist font — no Google Fonts network request needed
+const inter = localFont({
+  src: [
+    { path: "./fonts/GeistVF.woff",     weight: "100 900", style: "normal" },
+  ],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Sawari Book — Track Every Ride",
