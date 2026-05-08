@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import InstallBanner from "@/components/layout/InstallBanner";
 import OfflineSyncProvider from "@/components/layout/OfflineSyncProvider";
+import StoreCleaner from "@/components/layout/StoreCleaner";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -55,9 +56,10 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body
-        className={`${inter.variable} font-sans bg-brand-bg text-white antialiased min-h-screen`}
+        className={`${inter.variable} font-sans bg-brand-bg text-slate-900 antialiased min-h-screen`}
       >
         <ErrorBoundary>
+          <StoreCleaner />
           <OfflineSyncProvider />
           {children}
           <InstallBanner />

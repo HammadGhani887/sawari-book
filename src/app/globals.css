@@ -16,8 +16,8 @@
   }
 
   body {
-    background-color: #0F172A;
-    color: #F1F5F9;
+    background-color: #F0F4F8;
+    color: #0F172A;
     font-family: var(--font-inter);
     overscroll-behavior: none;
   }
@@ -28,21 +28,21 @@
     height: 4px;
   }
   ::-webkit-scrollbar-track {
-    background: #1E293B;
+    background: #F8FAFC;
   }
   ::-webkit-scrollbar-thumb {
-    background: #334155;
+    background: #CBD5E1;
     border-radius: 2px;
   }
 }
 
 @layer components {
   .card {
-    @apply bg-brand-surface rounded-2xl p-4;
+    @apply bg-brand-surface rounded-2xl p-4 shadow-sm border border-slate-200;
   }
 
   .card-elevated {
-    @apply bg-brand-elevated rounded-2xl p-4;
+    @apply bg-brand-elevated rounded-2xl p-4 shadow-sm border border-slate-200;
   }
 
   .btn-primary {
@@ -50,15 +50,19 @@
   }
 
   .btn-secondary {
-    @apply bg-brand-elevated text-white font-semibold rounded-xl px-6 py-3 active:scale-95 transition-transform;
+    @apply bg-white text-slate-900 font-semibold rounded-xl px-6 py-3 active:scale-95 transition-transform border border-slate-200 shadow-sm;
   }
 
   .input-field {
-    @apply bg-brand-elevated border border-brand-elevated focus:border-accent-green rounded-xl px-4 py-3 text-white placeholder-slate-500 outline-none w-full transition-colors;
+    @apply bg-white border border-slate-200 focus:border-accent-green rounded-xl px-4 py-3 text-slate-900 placeholder-slate-400 outline-none w-full transition-colors shadow-sm;
   }
 
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+
+  .input-auth {
+    @apply w-full bg-brand-surface border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent-green transition-colors;
   }
 }
 
@@ -88,12 +92,12 @@
 
   /* Card hover lift */
   .card-hover {
-    @apply transition-all duration-200 hover:scale-[1.01] hover:shadow-lg;
+    @apply transition-all duration-200 hover:scale-[1.01] hover:shadow-md;
   }
 
   /* Toast colored border helpers */
   .toast-success {
-    border-left: 4px solid #10B981 !important;
+    border-left: 4px solid #2563EB !important; /* Mapped to the new blue */
   }
   .toast-error {
     border-left: 4px solid #EF4444 !important;

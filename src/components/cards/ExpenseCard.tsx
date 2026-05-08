@@ -22,7 +22,7 @@ export default function ExpenseCard({
   const isPending = expense.status === "pending";
 
   return (
-    <div className="flex items-start gap-3 bg-brand-surface border border-slate-700/30 rounded-2xl p-4">
+    <div className="flex items-start gap-3 bg-brand-surface border border-slate-200/30 rounded-2xl p-4">
       {/* Category emoji */}
       <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-brand-elevated flex items-center justify-center text-xl">
         {category?.emoji ?? "📦"}
@@ -30,7 +30,7 @@ export default function ExpenseCard({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white">
+        <p className="text-sm font-semibold text-slate-900">
           {category?.name ?? expense.category}
         </p>
 
@@ -62,7 +62,7 @@ export default function ExpenseCard({
 
       {/* Right: amount + badge */}
       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-        <span className="text-base font-bold text-white">
+        <span className="text-base font-bold text-slate-900">
           {formatCurrency(expense.amount)}
         </span>
         <Badge type={expense.status as ExpenseStatus} />

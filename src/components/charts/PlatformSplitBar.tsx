@@ -43,11 +43,11 @@ export default function PlatformSplitBar({ data }: PlatformSplitBarProps) {
                 className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                 style={{ backgroundColor: entry.color }}
               />
-              <span className="text-slate-400 text-sm">{entry.platform}</span>
+              <span className="text-slate-600 text-sm">{entry.platform}</span>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-slate-500 text-xs">{entry.percentage.toFixed(1)}%</span>
-              <span className="text-white text-sm font-medium tabular-nums">
+              <span className="text-slate-900 text-sm font-medium tabular-nums">
                 {formatCurrency(entry.amount)}
               </span>
             </div>

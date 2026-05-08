@@ -29,9 +29,9 @@ function CustomTooltip({ active, payload, label }: {
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-brand-elevated rounded-xl px-3 py-2 shadow-lg border border-slate-700/50">
-      <p className="text-slate-400 text-xs mb-1">{label}</p>
-      <p className="text-white text-sm font-semibold">{formatCurrency(payload[0].value)}</p>
+    <div className="bg-brand-elevated rounded-xl px-3 py-2 shadow-lg border border-slate-200/50">
+      <p className="text-slate-600 text-xs mb-1">{label}</p>
+      <p className="text-slate-900 text-sm font-semibold">{formatCurrency(payload[0].value)}</p>
     </div>
   );
 }

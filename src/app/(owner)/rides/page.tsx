@@ -11,7 +11,13 @@ import type { Ride } from "@/lib/types";
 
 type DateRange = "today" | "week" | "month" | "custom";
 
-const WEEK_START = "2026-05-01";
+const WEEK_START = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() - 6);
+  return d.toISOString().slice(0, 10);
+})();
+
+const THIS_MONTH = new Date().toISOString().slice(0, 7);
 
 const PLATFORM_OPTIONS = [
   { id: "all",     label: "All"     },
@@ -26,13 +32,13 @@ const PAYMENT_OPTIONS = [
   { id: "wallet", label: "Wallet" },
 ] as const;
 
-const DATE_LABEL_MAP: Record<string, string> = {
-  [TODAY]:        "Today — 7 May 2026",
-  "2026-05-06":   "6 May 2026",
-  "2026-05-05":   "5 May 2026",
-  "2026-05-04":   "4 May 2026",
-  "2026-05-03":   "3 May 2026",
-};
+function formatDateLabel(dateStr: string): string {
+  const today     = TODAY;
+  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+  if (dateStr === today)     return "Today";
+  if (dateStr === yesterday) return "Yesterday";
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-PK", { weekday: "short", day: "numeric", month: "short" });
+}
 
 function Chip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
@@ -43,7 +49,7 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
         "px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 shrink-0",
         active
           ? "bg-accent-green text-white"
-          : "bg-brand-surface border border-slate-700 text-slate-400",
+          : "bg-brand-surface border border-slate-200 text-slate-600",
       ].join(" ")}
     >
       {label}
@@ -53,12 +59,13 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
 
 export default function AllRidesPage() {
   const rides   = useRideStore((s) => s.rides);
+  const flagRide = useRideStore((s) => s.flagRide);
   const drivers = useDriverStore((s) => s.drivers);
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [platform,     setPlatform]     = useState("all");
   const [payment,      setPayment]      = useState("all");
-  const [dateRange,    setDateRange]    = useState<DateRange>("month");
+  const [dateRange,    setDateRange]    = useState<DateRange>("today");
 
   const driverMap = useMemo(
     () => Object.fromEntries(drivers.map((d) => [d.id, d.name])),
@@ -72,6 +79,7 @@ export default function AllRidesPage() {
       const date = r.rideTime.slice(0, 10);
       if (dateRange === "today" && date !== TODAY) return false;
       if (dateRange === "week"  && date < WEEK_START) return false;
+      if (dateRange === "month" && !r.rideTime.startsWith(THIS_MONTH)) return false;
       return true;
     });
   }, [rides, platform, payment, dateRange]);
@@ -86,9 +94,10 @@ export default function AllRidesPage() {
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a));
   }, [filteredRides]);
 
-  const totalRevenue = filteredRides.reduce((s, r) => s + r.fareAmount, 0);
-  const cashCount    = filteredRides.filter((r) => r.paymentType === "cash").length;
-  const cashPct      = filteredRides.length > 0
+  const totalRevenue  = filteredRides.reduce((s, r) => s + r.fareAmount, 0);
+  const cashCount     = filteredRides.filter((r) => r.paymentType === "cash").length;
+  const disputedCount = filteredRides.filter((r) => r.isDisputed).length;
+  const cashPct       = filteredRides.length > 0
     ? Math.round((cashCount / filteredRides.length) * 100)
     : 0;
 
@@ -106,7 +115,7 @@ export default function AllRidesPage() {
               isFilterOpen ? "bg-accent-green" : "bg-brand-elevated",
             ].join(" ")}
           >
-            <Funnel size={15} className={isFilterOpen ? "text-white" : "text-slate-400"} />
+            <Funnel size={15} className={isFilterOpen ? "text-white" : "text-slate-600"} />
           </button>
         }
       />
@@ -114,7 +123,11 @@ export default function AllRidesPage() {
       <div className="flex flex-col gap-4 px-4 pt-3 pb-6">
 
         {isFilterOpen && (
-          <div className="flex flex-col gap-3 bg-brand-surface border border-slate-700/30 rounded-2xl p-4">
+          <div className="flex flex-col gap-3 bg-brand-surface border border-slate-200/30 rounded-2xl p-4">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Date</p>
+              <DateRangeSelector selected={dateRange} onChange={setDateRange} />
+            </div>
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Platform</p>
               <div className="flex gap-2 flex-wrap">
@@ -122,10 +135,6 @@ export default function AllRidesPage() {
                   <Chip key={id} active={platform === id} label={label} onClick={() => setPlatform(id)} />
                 ))}
               </div>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Date</p>
-              <DateRangeSelector selected={dateRange} onChange={setDateRange} />
             </div>
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Payment</p>
@@ -138,24 +147,32 @@ export default function AllRidesPage() {
           </div>
         )}
 
-        <div className="bg-brand-elevated rounded-xl p-3">
-          <p className="text-sm text-white text-center">
-            <span className="font-semibold">{filteredRides.length} rides</span>
-            <span className="text-slate-500 mx-1.5">·</span>
+        {/* Summary bar */}
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-600">{filteredRides.length} rides</span>
             <span className="text-accent-green font-semibold">{formatCurrency(totalRevenue)}</span>
-            <span className="text-slate-500 mx-1.5">·</span>
-            <span className="text-slate-300">{cashPct}% cash</span>
-          </p>
+            <span className="text-slate-600">{cashPct}% cash</span>
+            {disputedCount > 0 && (
+              <span className="text-status-red font-semibold">{disputedCount} disputed</span>
+            )}
+          </div>
         </div>
 
-        {grouped.length === 0 ? (
-          <p className="text-center text-slate-500 text-sm py-12">No rides match the selected filters.</p>
+        {filteredRides.length === 0 ? (
+          <div className="flex flex-col items-center py-12 gap-3">
+            <span className="text-4xl opacity-20">🚗</span>
+            <p className="text-center text-slate-500 text-sm">No rides in this period.</p>
+          </div>
         ) : (
           grouped.map(([date, dayRides]) => (
             <div key={date}>
-              <p className="text-xs uppercase tracking-wider text-slate-500 py-2">
-                {DATE_LABEL_MAP[date] ?? date}
-              </p>
+              <div className="flex items-center justify-between py-2">
+                <p className="text-xs uppercase tracking-wider text-slate-500">{formatDateLabel(date)}</p>
+                <p className="text-xs text-slate-500 tabular-nums">
+                  {formatCurrency(dayRides.reduce((s, r) => s + r.fareAmount, 0))}
+                </p>
+              </div>
               <div className="flex flex-col gap-3">
                 {dayRides.map((ride) => (
                   <RideEntryCard
@@ -163,6 +180,7 @@ export default function AllRidesPage() {
                     ride={ride}
                     showDriver
                     driverName={driverMap[ride.driverId]}
+                    onFlag={flagRide}
                   />
                 ))}
               </div>

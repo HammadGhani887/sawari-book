@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Car } from "lucide-react";
+import { Car, Calculator, GitCompare } from "lucide-react";
 import { ScreenHeader } from "@/components/ui";
 import { VehicleCard } from "@/components/cards";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
@@ -37,6 +37,19 @@ export default function VehiclesPage() {
       />
 
       <div className="flex flex-col gap-3 px-4 pt-4 pb-6">
+        {/* Tools row */}
+        {vehicles.length > 0 && (
+          <div className="flex gap-2">
+            <Link href="/vehicles/compare"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-accent-blue/40 text-accent-blue text-xs font-semibold active:opacity-70 bg-accent-blueDim">
+              <GitCompare size={13} /> Compare
+            </Link>
+            <Link href="/vehicles/breakeven"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold active:opacity-70 bg-white">
+              <Calculator size={13} /> Break-Even
+            </Link>
+          </div>
+        )}
         {vehicles.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16">
             <Car size={48} className="text-slate-700" />
@@ -51,20 +64,31 @@ export default function VehiclesPage() {
             </Link>
           </div>
         ) : (
-          vehicles.map((vehicle) => {
-            const vRides  = todayRides.filter((r) => r.vehicleId === vehicle.id);
-            const driver  = drivers.find((d) => d.vehicleId === vehicle.id);
-            return (
-              <VehicleCard
-                key={vehicle.id}
-                vehicle={vehicle}
-                todayRides={vRides.length}
-                todayRevenue={vRides.reduce((s, r) => s + r.fareAmount, 0)}
-                driverName={driver?.name}
-                onClick={() => router.push(`/vehicles/${vehicle.id}`)}
-              />
-            );
-          })
+          <div className="flex flex-col gap-4">
+            {vehicles.map((vehicle) => {
+              const vRides  = todayRides.filter((r) => r.vehicleId === vehicle.id);
+              const driver  = drivers.find((d) => d.vehicleId === vehicle.id);
+              return (
+                <div key={vehicle.id} className="flex flex-col gap-1.5">
+                  <VehicleCard
+                    vehicle={vehicle}
+                    todayRides={vRides.length}
+                    todayRevenue={vRides.reduce((s, r) => s + r.fareAmount, 0)}
+                    driverName={driver?.name}
+                    onClick={() => router.push(`/vehicles/${vehicle.id}`)}
+                  />
+                  {/* Settlement shortcut */}
+                  <Link
+                    href={`/settlement/${vehicle.id}`}
+                    className="flex items-center justify-center gap-2 py-2 rounded-xl border border-accent-green/40 text-accent-green text-xs font-semibold active:opacity-70 transition-opacity bg-accent-greenDim"
+                  >
+                    <Calculator size={13} />
+                    Monthly Settlement · حساب کتاب
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

@@ -29,7 +29,7 @@ export default function VehicleCard({
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-bold text-white text-sm tracking-wide">
+          <span className="font-bold text-slate-900 text-sm tracking-wide">
             {vehicle.plateNumber}
           </span>
           {!vehicle.isActive && (
@@ -39,7 +39,7 @@ export default function VehicleCard({
           )}
         </div>
 
-        <p className="text-xs text-slate-400 truncate">{vehicle.makeModel}</p>
+        <p className="text-xs text-slate-600 truncate">{vehicle.makeModel}</p>
 
         {/* Stats */}
         {(todayRides > 0 || todayRevenue > 0) && (

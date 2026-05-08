@@ -10,21 +10,21 @@ import { formatCurrency } from "@/lib/utils/format";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import type { Expense } from "@/lib/types";
 
-const DATE_LABELS: Record<string, string> = {
-  "2026-05-07": "7 May 2026",
-  "2026-05-06": "6 May 2026",
-  "2026-05-05": "5 May 2026",
-  "2026-05-04": "4 May 2026",
-  "2026-05-03": "3 May 2026",
-  "2026-05-02": "2 May 2026",
-  "2026-05-01": "1 May 2026",
-};
+const THIS_MONTH = new Date().toISOString().slice(0, 7);
+
+function formatDateLabel(dateStr: string): string {
+  const today     = new Date().toISOString().slice(0, 10);
+  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+  if (dateStr === today)     return "Today";
+  if (dateStr === yesterday) return "Yesterday";
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-PK", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+}
 
 export default function ExpensesPage() {
   const { expenses, approveExpense, rejectExpense } = useExpenseStore();
 
-  const [selectedCategory,   setSelectedCategory]  = useState("all");
-  const [isPendingExpanded,  setIsPendingExpanded] = useState(true);
+  const [selectedCategory,  setSelectedCategory]  = useState("all");
+  const [isPendingExpanded, setIsPendingExpanded] = useState(true);
 
   const pendingExpenses = useMemo(
     () => expenses.filter((e) => e.status === "pending"),
@@ -47,7 +47,14 @@ export default function ExpensesPage() {
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a));
   }, [listedExpenses]);
 
-  const monthlyTotal = expenses.reduce((s, e) => s + e.amount, 0);
+  // Monthly total — approved only
+  const monthlyApproved = expenses
+    .filter((e) => e.status === "approved" && e.date.startsWith(THIS_MONTH))
+    .reduce((s, e) => s + e.amount, 0);
+
+  const monthlyPending = expenses
+    .filter((e) => e.status === "pending" && e.date.startsWith(THIS_MONTH))
+    .reduce((s, e) => s + e.amount, 0);
 
   return (
     <div className="flex flex-col min-h-full">
@@ -66,8 +73,24 @@ export default function ExpensesPage() {
 
       <div className="flex flex-col gap-4 px-4 pt-3 pb-6">
 
+        {/* Monthly summary */}
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-500">This Month — Approved</p>
+              <p className="text-base font-bold text-status-amber tabular-nums">{formatCurrency(monthlyApproved)}</p>
+            </div>
+            {monthlyPending > 0 && (
+              <div className="text-right">
+                <p className="text-xs text-slate-500">Pending</p>
+                <p className="text-base font-bold text-slate-600 tabular-nums">{formatCurrency(monthlyPending)}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Category filter chips */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           <button
             type="button"
             onClick={() => setSelectedCategory("all")}
@@ -75,7 +98,7 @@ export default function ExpensesPage() {
               "px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all active:scale-95",
               selectedCategory === "all"
                 ? "bg-accent-green text-white"
-                : "bg-brand-surface border border-slate-700 text-slate-400",
+                : "bg-brand-surface border border-slate-200 text-slate-600",
             ].join(" ")}
           >
             All
@@ -89,7 +112,7 @@ export default function ExpensesPage() {
                 "px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all active:scale-95",
                 selectedCategory === cat.id
                   ? "bg-accent-green text-white"
-                  : "bg-brand-surface border border-slate-700 text-slate-400",
+                  : "bg-brand-surface border border-slate-200 text-slate-600",
               ].join(" ")}
             >
               {cat.emoji} {cat.name}
@@ -135,13 +158,19 @@ export default function ExpensesPage() {
 
         {/* Expense list grouped by date */}
         {grouped.length === 0 ? (
-          <p className="text-center text-slate-500 text-sm py-8">No expenses in this category.</p>
+          <div className="flex flex-col items-center py-12 gap-3">
+            <span className="text-4xl opacity-20">🧾</span>
+            <p className="text-center text-slate-500 text-sm">No expenses in this category.</p>
+          </div>
         ) : (
           grouped.map(([date, exps]) => (
             <div key={date}>
-              <p className="text-xs uppercase tracking-wider text-slate-500 py-2">
-                {DATE_LABELS[date] ?? date}
-              </p>
+              <div className="flex items-center justify-between py-2">
+                <p className="text-xs uppercase tracking-wider text-slate-500">{formatDateLabel(date)}</p>
+                <p className="text-xs text-slate-500 tabular-nums">
+                  {formatCurrency(exps.filter((e) => e.status === "approved").reduce((s, e) => s + e.amount, 0))}
+                </p>
+              </div>
               <div className="flex flex-col gap-3">
                 {exps.map((exp) => (
                   <ExpenseCard key={exp.id} expense={exp} />
@@ -150,14 +179,6 @@ export default function ExpensesPage() {
             </div>
           ))
         )}
-
-        {/* Monthly total */}
-        <div className="mt-2 pt-4 border-t border-slate-700/50">
-          <p className="text-sm text-slate-400 text-center">
-            This Month:{" "}
-            <span className="font-semibold text-white">{formatCurrency(monthlyTotal)}</span> total
-          </p>
-        </div>
 
       </div>
     </div>

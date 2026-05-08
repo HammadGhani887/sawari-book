@@ -2,19 +2,35 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { useAuthStore } from "@/lib/store/authStore";
 
 export default function SplashPage() {
   const router = useRouter();
+  const { isAuthenticated, user } = useAuthStore();
 
   useEffect(() => {
-    const t = setTimeout(() => router.replace("/login"), 1500);
+    const t = setTimeout(() => {
+      if (isAuthenticated && user) {
+        router.replace(user.role === "owner" ? "/dashboard" : "/home");
+      } else {
+        router.replace("/login");
+      }
+    }, 1200);
     return () => clearTimeout(t);
-  }, [router]);
+  }, [isAuthenticated, user, router]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-brand-bg gap-4">
-      <div className="w-20 h-20 rounded-3xl bg-accent-greenDim flex items-center justify-center animate-in zoom-in duration-500">
-        <span className="text-5xl">🚗</span>
+      <div className="w-24 h-24 rounded-3xl overflow-hidden animate-scaleIn shadow-xl">
+        <Image
+          src="/sawari-app.png"
+          alt="Sawari Book"
+          width={96}
+          height={96}
+          className="w-full h-full object-cover"
+          priority
+        />
       </div>
       <div className="text-center">
         <h1 className="text-3xl font-bold text-white tracking-tight">Sawari Book</h1>

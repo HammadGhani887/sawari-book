@@ -38,7 +38,7 @@ function TimelineEntry({ entry, isLast }: { entry: DayEntry; isLast: boolean }) 
       </div>
       <div className="flex-1 pl-3 pb-4">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm text-slate-200 leading-snug">{entry.icon} {entry.description}</p>
+          <p className="text-sm text-slate-800 leading-snug">{entry.icon} {entry.description}</p>
           <p className={`text-sm font-semibold tabular-nums shrink-0 leading-snug ${entry.amountColor}`}>
             {entry.amount}
           </p>
@@ -53,7 +53,7 @@ function StatPill({ label, value, sub }: { label: string; value: string; sub?: s
   return (
     <div className="flex flex-col items-center bg-brand-elevated rounded-xl px-3 py-2.5 flex-1">
       <p className="text-[11px] text-slate-500 leading-tight">{label}</p>
-      <p className="text-base font-bold text-white mt-0.5 leading-tight tabular-nums">{value}</p>
+      <p className="text-base font-bold text-slate-900 mt-0.5 leading-tight tabular-nums">{value}</p>
       {sub && <p className="text-[10px] text-slate-600 mt-0.5">{sub}</p>}
     </div>
   );
@@ -65,15 +65,13 @@ export default function MyDayPage() {
   const fuelLogs = useFuelStore((s) => s.fuelLogs);
   const expenses = useExpenseStore((s) => s.expenses);
 
-  const [selectedDate, setSelectedDate] = useState(new Date("2026-05-07"));
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
 
-  const todayMidnight = new Date("2026-05-07T00:00:00");
-  const selMidnight   = new Date(selectedDate);
-  selMidnight.setHours(0, 0, 0, 0);
-  const isToday   = selMidnight.getTime() === todayMidnight.getTime();
-  const dateStr   = selectedDate.toISOString().slice(0, 10);
-  const driverId  = driver?.id ?? "d1";
-  const vehicleId = driver?.vehicleId ?? "v1";
+  const todayStr    = new Date().toISOString().slice(0, 10);
+  const dateStr     = selectedDate.toISOString().slice(0, 10);
+  const isToday     = dateStr === todayStr;
+  const driverId    = driver?.id ?? "";
+  const vehicleId   = driver?.vehicleId ?? "";
 
   function prevDay() {
     setSelectedDate((d) => { const p = new Date(d); p.setDate(p.getDate() - 1); return p; });
@@ -125,7 +123,7 @@ export default function MyDayPage() {
       sub:         e.status === "pending" ? "Pending approval" : e.status === "approved" ? "Approved" : "Rejected",
       amount:      `−${formatCurrency(e.amount)}`,
       dotColor:    e.status === "pending" ? "#64748B" : "#F59E0B",
-      amountColor: e.status === "pending" ? "text-slate-400" : "text-status-amber",
+      amountColor: e.status === "pending" ? "text-slate-600" : "text-status-amber",
     }));
 
     return [...rideEntries, ...fuelEntries, ...expenseEntries]
@@ -134,9 +132,15 @@ export default function MyDayPage() {
 
   // Totals
   const totalRevenue  = dayRides.reduce((s, r) => s + r.fareAmount, 0);
-  const totalFuelCost = dayFuel.reduce((s, f) => s + f.amountPkr, 0);
-  const totalExpenses = dayExpenses.reduce((s, e) => s + e.amount, 0);
-  const netEarnings   = totalRevenue - totalFuelCost - totalExpenses;
+  // Fuel cost: actual fuel logs first, then fuel-category expenses, then estimated from rides
+  const actualFuelLogs  = dayFuel.reduce((s, f) => s + f.amountPkr, 0);
+  const fuelExpenses    = dayExpenses.filter((e) => e.category === "fuel").reduce((s, e) => s + e.amount, 0);
+  const estFuelRides    = dayRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
+  const totalFuelCost   = actualFuelLogs > 0 ? actualFuelLogs : fuelExpenses > 0 ? fuelExpenses : estFuelRides;
+  const fuelLabel       = actualFuelLogs > 0 ? "actual" : fuelExpenses > 0 ? "expense" : estFuelRides > 0 ? "est." : null;
+  const otherExpenses   = dayExpenses.filter((e) => e.category !== "fuel").reduce((s, e) => s + e.amount, 0);
+  const totalExpenses   = dayExpenses.reduce((s, e) => s + e.amount, 0);
+  const netEarnings     = totalRevenue - totalFuelCost - otherExpenses;
 
   // Distance & efficiency (only if rides have distanceKm)
   const totalKm      = dayRides.reduce((s, r) => s + (r.distanceKm ?? 0), 0);
@@ -153,15 +157,15 @@ export default function MyDayPage() {
       <ScreenHeader title="My Day" titleUrdu="میرا دن" />
 
       {/* Date navigator */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-700/30 bg-brand-bg/80 backdrop-blur-sm sticky top-14 z-30">
-        <button onClick={prevDay} className="w-8 h-8 flex items-center justify-center rounded-full bg-brand-surface text-slate-400 active:text-white transition-colors">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200/30 bg-brand-bg/80 backdrop-blur-sm sticky top-14 z-30">
+        <button onClick={prevDay} className="w-8 h-8 flex items-center justify-center rounded-full bg-brand-surface text-slate-600 active:text-slate-900 transition-colors">
           <ChevronLeft size={16} />
         </button>
         <div className="text-center">
-          <p className="text-sm font-semibold text-white leading-tight">{formattedDate}</p>
+          <p className="text-sm font-semibold text-slate-900 leading-tight">{formattedDate}</p>
           {isToday && <p className="text-[10px] text-accent-blue font-medium mt-0.5">Today</p>}
         </div>
-        <button onClick={nextDay} disabled={isToday} className="w-8 h-8 flex items-center justify-center rounded-full bg-brand-surface text-slate-400 active:text-white disabled:opacity-30 transition-colors">
+        <button onClick={nextDay} disabled={isToday} className="w-8 h-8 flex items-center justify-center rounded-full bg-brand-surface text-slate-600 active:text-slate-900 disabled:opacity-30 transition-colors">
           <ChevronRight size={16} />
         </button>
       </div>
@@ -171,25 +175,25 @@ export default function MyDayPage() {
         {/* Summary pill */}
         <Card>
           <p className="text-sm leading-relaxed">
-            <span className="text-white font-medium">{dayRides.length} ride{dayRides.length !== 1 ? "s" : ""}</span>
+            <span className="text-slate-900 font-medium">{dayRides.length} ride{dayRides.length !== 1 ? "s" : ""}</span>
             <span className="text-slate-500"> · </span>
             <span className="text-accent-green font-medium">{formatCurrency(totalRevenue)} earned</span>
             {totalFuelCost > 0 && (
               <>
                 <span className="text-slate-500"> · </span>
-                <span className="text-status-amber font-medium">{formatCurrency(totalFuelCost)} fuel</span>
+                <span className="text-status-amber font-medium">{formatCurrency(totalFuelCost)} fuel{fuelLabel ? ` (${fuelLabel})` : ""}</span>
               </>
             )}
-            {totalExpenses > 0 && (
+            {otherExpenses > 0 && (
               <>
                 <span className="text-slate-500"> · </span>
-                <span className="text-status-red font-medium">{formatCurrency(totalExpenses)} expenses</span>
+                <span className="text-status-red font-medium">{formatCurrency(otherExpenses)} expenses</span>
               </>
             )}
             {hasKmData && (
               <>
                 <span className="text-slate-500"> · </span>
-                <span className="text-slate-300 font-medium">{totalKm.toFixed(1)} km</span>
+                <span className="text-slate-700 font-medium">{totalKm.toFixed(1)} km</span>
               </>
             )}
           </p>
@@ -223,7 +227,7 @@ export default function MyDayPage() {
                 {" "}and costs{" "}
                 <span className="text-status-amber font-semibold">Rs {costPerKm}</span>
                 {" "}in fuel —{" "}
-                <span className="text-white font-semibold">Rs {revenuePerKm - costPerKm} net / km</span>
+                <span className="text-slate-900 font-semibold">Rs {revenuePerKm - costPerKm} net / km</span>
               </p>
             )}
           </div>
@@ -250,24 +254,16 @@ export default function MyDayPage() {
 
       {/* Sticky net earnings bar */}
       <div className="fixed bottom-16 left-0 right-0 px-4 pb-2 pointer-events-none">
-        <div className="bg-brand-surface border border-slate-700/50 rounded-2xl px-4 py-3 shadow-xl shadow-black/50 pointer-events-auto">
+        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xl shadow-black/10 pointer-events-auto">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Net Earnings</span>
-              <p className="text-[10px] text-slate-600 mt-0.5" dir="rtl">خالص کمائی</p>
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Net Profit</span>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {formatCurrency(totalRevenue)} − {formatCurrency(totalFuelCost)} fuel{fuelLabel ? ` (${fuelLabel})` : ""}{otherExpenses > 0 ? ` − ${formatCurrency(otherExpenses)} exp` : ""}
+              </p>
             </div>
-            <p className="text-sm">
-              <span className="text-accent-green font-medium">{formatCurrency(totalRevenue)}</span>
-              {(totalFuelCost + totalExpenses) > 0 && (
-                <>
-                  <span className="text-slate-500 mx-1">−</span>
-                  <span className="text-status-amber font-medium">{formatCurrency(totalFuelCost + totalExpenses)}</span>
-                  <span className="text-slate-500 mx-1">=</span>
-                </>
-              )}
-              <span className={`font-bold text-base ml-1 ${netEarnings >= 0 ? "text-white" : "text-status-red"}`}>
-                {formatCurrency(netEarnings)}
-              </span>
+            <p className={`text-xl font-bold tabular-nums ${netEarnings >= 0 ? "text-accent-green" : "text-status-red"}`}>
+              {formatCurrency(netEarnings)}
             </p>
           </div>
         </div>

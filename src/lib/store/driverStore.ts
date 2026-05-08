@@ -1,10 +1,11 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { SalaryType } from "@/lib/types";
+import { useAuthStore } from "@/lib/store/authStore";
 
 export interface DriverProfile {
-  id: string;         // "d1" — matches rides.driverId
-  userId: string;     // links to authStore.user.id
+  id: string;
+  userId: string;
   name: string;
   phone: string;
   cnic?: string;
@@ -13,45 +14,8 @@ export interface DriverProfile {
   salaryType: SalaryType;
   salaryAmount: number;
   startDate: string;
+  dailyTargetPkr?: number;   // owner sets daily revenue target for this driver
 }
-
-const SEED: DriverProfile[] = [
-  {
-    id: "d1",
-    userId: "2",
-    name: "Ahmed Khan",
-    phone: "0301-1234567",
-    cnic: "35201-1234567-1",
-    isActive: true,
-    vehicleId: "v1",
-    salaryType: "fixed",
-    salaryAmount: 25000,
-    startDate: "2026-01-15",
-  },
-  {
-    id: "d2",
-    userId: "",
-    name: "Farhan Ali",
-    phone: "0300-9876543",
-    cnic: "35202-7654321-3",
-    isActive: true,
-    vehicleId: "v2",
-    salaryType: "fixed",
-    salaryAmount: 22000,
-    startDate: "2026-02-01",
-  },
-  {
-    id: "d3",
-    userId: "",
-    name: "Bilal Ahmed",
-    phone: "0312-5554444",
-    isActive: false,
-    vehicleId: null,
-    salaryType: "fixed",
-    salaryAmount: 0,
-    startDate: "2026-03-01",
-  },
-];
 
 interface DriverState {
   drivers: DriverProfile[];
@@ -63,7 +27,7 @@ interface DriverState {
 export const useDriverStore = create<DriverState>()(
   persist(
     (set) => ({
-      drivers: SEED,
+      drivers: [],
 
       addDriver: (data) =>
         set((s) => ({
@@ -84,6 +48,6 @@ export const useDriverStore = create<DriverState>()(
 
 export function useCurrentDriver() {
   const drivers = useDriverStore((s) => s.drivers);
-  // In production, look up by authStore user.id. Hardcoded to d1 (Ahmed) for mock.
-  return drivers.find((d) => d.id === "d1") ?? null;
+  const userId = useAuthStore((s) => s.user?.id);
+  return drivers.find((d) => d.userId === userId) ?? null;
 }

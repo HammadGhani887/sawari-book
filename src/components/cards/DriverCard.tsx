@@ -44,11 +44,11 @@ export default function DriverCard({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-white text-sm truncate">{name}</p>
+        <p className="font-bold text-slate-900 text-sm truncate">{name}</p>
         <p className="text-xs text-slate-500 truncate">{phone}</p>
 
         {vehicleName ? (
-          <p className="text-xs text-slate-400 mt-0.5 truncate">
+          <p className="text-xs text-slate-600 mt-0.5 truncate">
             🚗 {vehicleName}
           </p>
         ) : (

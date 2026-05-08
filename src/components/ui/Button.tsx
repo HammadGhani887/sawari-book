@@ -21,9 +21,9 @@ interface ButtonProps {
 const variantClasses: Record<Variant, string> = {
   primary:   "bg-accent-green text-white",
   driver:    "bg-accent-blue text-white",
-  outline:   "border border-slate-600 text-white bg-transparent",
+  outline:   "border border-slate-300 text-slate-900 bg-transparent",
   danger:    "bg-status-red text-white",
-  secondary: "bg-brand-surface text-white border border-slate-700/50",
+  secondary: "bg-white text-slate-900 border border-slate-200 shadow-sm",
 };
 
 const sizeClasses: Record<Size, string> = {

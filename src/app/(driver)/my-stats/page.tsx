@@ -7,7 +7,7 @@ import { useRideStore, TODAY } from "@/lib/store/rideStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
-import { useVehicleSettingsStore } from "@/lib/store/vehicleSettingsStore";
+import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { formatCurrency } from "@/lib/utils/format";
 
 type Period = "today" | "week" | "month" | "year" | "custom";
@@ -35,7 +35,7 @@ function getRange(period: Period, customStart: string, customEnd: string): { sta
   return { start: customStart || today.slice(0, 7) + "-01", end: customEnd || today };
 }
 
-function KPIBlock({ label, urdu, value, sub, color = "text-white" }: {
+function KPIBlock({ label, urdu, value, sub, color = "text-slate-900" }: {
   label: string; urdu?: string; value: string; sub?: string; color?: string;
 }) {
   return (
@@ -49,19 +49,21 @@ function KPIBlock({ label, urdu, value, sub, color = "text-white" }: {
 }
 
 export default function MyStatsPage() {
-  const driver      = useCurrentDriver();
-  const rides       = useRideStore((s) => s.rides);
-  const fuelLogs    = useFuelStore((s) => s.fuelLogs);
-  const expenses    = useExpenseStore((s) => s.expenses);
-  const estimateFuel = useVehicleSettingsStore((s) => s.estimateFuelCost);
-  const effectiveAvg = useVehicleSettingsStore((s) => s.getEffectiveAverage)(fuelLogs);
+  const driver        = useCurrentDriver();
+  const rides         = useRideStore((s) => s.rides);
+  const fuelLogs      = useFuelStore((s) => s.fuelLogs);
+  const expenses      = useExpenseStore((s) => s.expenses);
+  const estimateFuel  = useVehicleStore((s) => s.estimateFuelCost);
+  const getEffective  = useVehicleStore((s) => s.getEffectiveAverage);
 
   const [period,      setPeriod]      = useState<Period>("month");
   const [customStart, setCustomStart] = useState("");
   const [customEnd,   setCustomEnd]   = useState("");
 
-  const driverId  = driver?.id  ?? "d1";
-  const vehicleId = driver?.vehicleId ?? "v1";
+  const driverId   = driver?.id  ?? "";
+  const vehicleId  = driver?.vehicleId ?? "";
+  const effectiveAvg = getEffective(vehicleId, fuelLogs);
+
   const { start, end } = getRange(period, customStart, customEnd);
 
   // Filter data to range
@@ -83,14 +85,26 @@ export default function MyStatsPage() {
   const actualFuelCost    = filteredFuel.reduce((s, f) => s + f.amountPkr, 0);
   const totalExpenses     = filteredExpenses.reduce((s, e) => s + e.amount, 0);
   const totalKm           = filteredRides.reduce((s, r) => s + (r.distanceKm ?? 0), 0);
-  const ridesWithKm       = filteredRides.filter((r) => r.distanceKm);
-  const estimatedFuelCost = ridesWithKm.reduce((s, r) => s + estimateFuel(r.distanceKm!, fuelLogs), 0);
-  const fuelCostDisplay   = actualFuelCost > 0 ? actualFuelCost : estimatedFuelCost;
-  const netProfit         = totalRevenue - fuelCostDisplay - totalExpenses;
   const totalLitres       = filteredFuel.reduce((s, f) => s + f.litres, 0);
 
+  // Estimated fuel from rides that have distance
+  const estimatedFuelCost = filteredRides
+    .filter((r) => r.distanceKm)
+    .reduce((s, r) => s + estimateFuel(vehicleId, r.distanceKm!, fuelLogs), 0);
+
+  // Use saved estimatedFuelCost on ride if available, else calculate
+  const rideEstFuel = filteredRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
+
+  const fuelCostDisplay = actualFuelCost > 0
+    ? actualFuelCost
+    : rideEstFuel > 0
+    ? rideEstFuel
+    : estimatedFuelCost;
+
+  const netProfit = totalRevenue - fuelCostDisplay - totalExpenses;
+
   // Days in range
-  const dayCount = Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1);
+  const dayCount  = Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1);
   const avgPerDay = totalRevenue / dayCount;
 
   // Best single day
@@ -112,14 +126,12 @@ export default function MyStatsPage() {
     return acc;
   }, {});
 
-  // Chart — last 7 days or spread over period
+  // Chart data
   const chartData = useMemo(() => {
     if (period === "today") {
-      // Hourly not practical; show single day
       return [{ day: "Today", revenue: totalRevenue }];
     }
     if (period === "week" || period === "month" || period === "custom") {
-      // Last 7 days ending at end date
       return Array.from({ length: 7 }, (_, i) => {
         const d = new Date(end + "T00:00:00.000Z");
         d.setUTCDate(d.getUTCDate() - (6 - i));
@@ -143,11 +155,11 @@ export default function MyStatsPage() {
   }, [filteredRides, period, end, totalRevenue]);
 
   const TABS: { key: Period; label: string; urdu: string }[] = [
-    { key: "today", label: "Today",  urdu: "آج"     },
-    { key: "week",  label: "Week",   urdu: "ہفتہ"  },
-    { key: "month", label: "Month",  urdu: "مہینہ" },
-    { key: "year",  label: "Year",   urdu: "سال"   },
-    { key: "custom",label: "Custom", urdu: "خاص"   },
+    { key: "today",  label: "Today",  urdu: "آج"     },
+    { key: "week",   label: "Week",   urdu: "ہفتہ"  },
+    { key: "month",  label: "Month",  urdu: "مہینہ" },
+    { key: "year",   label: "Year",   urdu: "سال"   },
+    { key: "custom", label: "Custom", urdu: "خاص"   },
   ];
 
   return (
@@ -166,7 +178,7 @@ export default function MyStatsPage() {
                 "flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors leading-tight",
                 period === tab.key
                   ? "bg-accent-blue text-white"
-                  : "text-slate-400 active:text-white",
+                  : "text-slate-600 active:text-slate-900",
               ].join(" ")}
             >
               <p>{tab.label}</p>
@@ -185,7 +197,7 @@ export default function MyStatsPage() {
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
                 max={TODAY}
-                className="w-full bg-brand-surface border border-slate-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-accent-blue"
+                className="w-full bg-brand-surface border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent-blue"
               />
             </div>
             <div className="flex-1">
@@ -195,7 +207,7 @@ export default function MyStatsPage() {
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
                 max={TODAY}
-                className="w-full bg-brand-surface border border-slate-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-accent-blue"
+                className="w-full bg-brand-surface border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent-blue"
               />
             </div>
           </div>
@@ -209,17 +221,17 @@ export default function MyStatsPage() {
 
         {/* KPI grid */}
         <div className="grid grid-cols-2 gap-3">
-          <KPIBlock label="Total Revenue"  urdu="کل آمدنی"    value={formatCurrency(totalRevenue)}  color="text-accent-green" />
-          <KPIBlock label="Net Profit"     urdu="خالص فائدہ"  value={formatCurrency(netProfit)}
-            color={netProfit >= 0 ? "text-white" : "text-status-red"} />
+          <KPIBlock label="Total Revenue" urdu="کل آمدنی"   value={formatCurrency(totalRevenue)}  color="text-accent-green" />
+          <KPIBlock label="Net Profit"    urdu="خالص فائدہ" value={formatCurrency(netProfit)}
+            color={netProfit >= 0 ? "text-slate-900" : "text-status-red"} />
           <KPIBlock
             label="Fuel Cost"
             urdu="تیل خرچ"
             value={formatCurrency(fuelCostDisplay)}
-            sub={estimatedFuelCost > 0 && actualFuelCost === 0 ? `est. at ${effectiveAvg} km/L` : actualFuelCost > 0 ? "actual fill-ups" : ""}
+            sub={actualFuelCost > 0 ? "actual fill-ups" : fuelCostDisplay > 0 ? "estimated" : ""}
             color="text-status-amber"
           />
-          <KPIBlock label="Expenses"       urdu="اخراجات"     value={formatCurrency(totalExpenses)} color="text-status-red" />
+          <KPIBlock label="Expenses" urdu="اخراجات" value={formatCurrency(totalExpenses)} color="text-status-red" />
         </div>
 
         {/* Rides + distance */}
@@ -227,16 +239,16 @@ export default function MyStatsPage() {
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Rides Summary</p>
           <div className="grid grid-cols-2 gap-y-3">
             {[
-              { label: "Total Rides",     value: String(filteredRides.length)         },
-              { label: "Avg / Day",       value: formatCurrency(avgPerDay)            },
-              { label: "Best Day",        value: bestDayLabel,                         },
-              { label: "Total KM",        value: totalKm > 0 ? `${totalKm.toFixed(1)} km` : "—" },
-              { label: "Fuel Litres",     value: totalLitres > 0 ? `${totalLitres.toFixed(1)} L` : "—" },
-              { label: "Fuel Average",    value: `${effectiveAvg} km/L`              },
+              { label: "Total Rides",  value: String(filteredRides.length)                        },
+              { label: "Avg / Day",    value: formatCurrency(avgPerDay)                           },
+              { label: "Best Day",     value: bestDayLabel                                        },
+              { label: "Total KM",     value: totalKm > 0 ? `${totalKm.toFixed(1)} km` : "—"     },
+              { label: "Fuel Litres",  value: totalLitres > 0 ? `${totalLitres.toFixed(1)} L` : "—" },
+              { label: "Fuel Average", value: effectiveAvg > 0 ? `${effectiveAvg} km/L` : "—"    },
             ].map(({ label, value }) => (
               <div key={label}>
                 <p className="text-[10px] text-slate-500">{label}</p>
-                <p className="text-sm font-semibold text-white mt-0.5 tabular-nums">{value}</p>
+                <p className="text-sm font-semibold text-slate-900 mt-0.5 tabular-nums">{value}</p>
               </div>
             ))}
           </div>
@@ -256,11 +268,11 @@ export default function MyStatsPage() {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLATFORM_COLORS[platform] ?? "#64748B" }} />
-                          <span className="text-sm text-white font-medium">{PLATFORM_LABELS[platform] ?? platform}</span>
+                          <span className="text-sm text-slate-900 font-medium">{PLATFORM_LABELS[platform] ?? platform}</span>
                           <span className="text-xs text-slate-500">{data.count} rides</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-white tabular-nums">{formatCurrency(data.revenue)}</span>
+                          <span className="text-sm font-semibold text-slate-900 tabular-nums">{formatCurrency(data.revenue)}</span>
                           <span className="text-xs text-slate-500 w-8 text-right">{pct.toFixed(0)}%</span>
                         </div>
                       </div>
@@ -286,10 +298,10 @@ export default function MyStatsPage() {
           </div>
         )}
 
-        {/* Fuel cost note */}
-        {estimatedFuelCost > 0 && actualFuelCost === 0 && (
-          <p className="text-[11px] text-slate-600 text-center px-4">
-            * Fuel cost is estimated based on your {effectiveAvg} km/L average. Add fuel fill-ups in My Day for exact figures.
+        {/* Fuel note */}
+        {fuelCostDisplay > 0 && actualFuelCost === 0 && (
+          <p className="text-[11px] text-slate-400 text-center px-4">
+            * Fuel cost is estimated. Add fuel fill-ups for exact figures.
           </p>
         )}
 

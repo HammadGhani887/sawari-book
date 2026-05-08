@@ -5,59 +5,61 @@ import { ScreenHeader } from "@/components/ui";
 import { useNotificationStore } from "@/lib/store/notificationStore";
 import type { Notification } from "@/lib/types";
 
-const TODAY_DATE = "2026-05-07";
-const YESTERDAY  = "2026-05-06";
+function formatTimeAgo(createdAt: string): string {
+  const now      = new Date();
+  const created  = new Date(createdAt);
+  const diffMs   = now.getTime() - created.getTime();
+  const diffMin  = Math.floor(diffMs / 60000);
+  const diffHr   = Math.floor(diffMin / 60);
+  const diffDay  = Math.floor(diffHr / 24);
+
+  if (diffMin < 1)   return "Just now";
+  if (diffMin < 60)  return `${diffMin}m ago`;
+  if (diffHr  < 24)  return `${diffHr}h ago`;
+  if (diffDay === 1) return "Yesterday";
+  if (diffDay < 7)   return `${diffDay} days ago`;
+  return created.toLocaleDateString("en-PK", { day: "numeric", month: "short" });
+}
 
 function getGroup(createdAt: string): "today" | "yesterday" | "earlier" {
-  const date = createdAt.slice(0, 10);
-  if (date === TODAY_DATE) return "today";
-  if (date === YESTERDAY)  return "yesterday";
+  const now      = new Date();
+  const created  = new Date(createdAt);
+  const diffDay  = Math.floor((now.getTime() - created.getTime()) / 86400000);
+  if (diffDay < 1)  return "today";
+  if (diffDay < 2)  return "yesterday";
   return "earlier";
 }
 
-function formatTime(createdAt: string): string {
-  const date = new Date(createdAt);
-  const group = getGroup(createdAt);
-  if (group === "today") {
-    const diffMs  = new Date(TODAY_DATE + "T23:59:59Z").getTime() - date.getTime();
-    const diffMin = Math.round(diffMs / 60000);
-    if (diffMin < 60)  return `${diffMin} min ago`;
-    return `${Math.floor(diffMin / 60)} hour${Math.floor(diffMin / 60) > 1 ? "s" : ""} ago`;
-  }
-  const time = date.toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" });
-  if (group === "yesterday") return `Yesterday ${time}`;
-  return date.toLocaleDateString("en-PK", { day: "numeric", month: "short" }) + ` ${time}`;
-}
+const TYPE_ICON: Record<string, string> = {
+  ride_logged:      "🚗",
+  anomaly:          "⚠️",
+  expense_pending:  "🧾",
+  expense_approved: "✅",
+  settlement_ready: "💰",
+};
 
 function NotifRow({ notif, onPress }: { notif: Notification; onPress: () => void }) {
-  const isAmber = notif.type === "anomaly";
-  const bgClass = notif.isRead
-    ? "opacity-60"
-    : isAmber
-    ? "bg-status-amberDim"
-    : "bg-brand-surface/80";
+  const isAmber = notif.type === "anomaly" || notif.type === "expense_pending";
+  const icon    = TYPE_ICON[notif.type] ?? "🔔";
 
   return (
     <button
       type="button"
       onClick={onPress}
       className={[
-        "w-full flex items-center gap-3 py-3 px-4 rounded-xl mb-2 text-left active:opacity-70 transition-opacity",
-        bgClass,
+        "w-full flex items-start gap-3 py-3 px-4 rounded-xl mb-2 text-left active:opacity-70 transition-opacity",
+        notif.isRead ? "opacity-60 bg-white" : isAmber ? "bg-status-amberDim" : "bg-accent-greenDim",
       ].join(" ")}
     >
-      <div className="shrink-0 mt-0.5">
-        {notif.isRead ? (
-          <div className="w-2 h-2 rounded-full bg-transparent" />
-        ) : (
-          <div className={`w-2 h-2 rounded-full ${isAmber ? "bg-status-amber" : "bg-accent-green"}`} />
-        )}
-      </div>
+      <span className="text-xl leading-none shrink-0 mt-0.5">{icon}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-white leading-snug">{notif.title}</p>
-        <p className="text-xs text-slate-500 mt-0.5">{formatTime(notif.createdAt)}</p>
+        <p className="text-sm font-semibold text-slate-900 leading-snug">{notif.title}</p>
+        {notif.body && <p className="text-xs text-slate-600 mt-0.5">{notif.body}</p>}
+        <p className="text-[10px] text-slate-400 mt-1">{formatTimeAgo(notif.createdAt)}</p>
       </div>
-      <ChevronRight size={14} className="shrink-0 text-slate-600" />
+      {!notif.isRead && (
+        <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${isAmber ? "bg-status-amber" : "bg-accent-green"}`} />
+      )}
     </button>
   );
 }
@@ -77,29 +79,34 @@ export default function NotificationsPage() {
         title="Notifications"
         titleUrdu="اطلاعات"
         rightAction={
-          <button
-            type="button"
-            onClick={markAllRead}
-            disabled={unreadCount() === 0}
-            className="text-xs text-slate-400 disabled:opacity-40 transition-opacity"
-          >
-            Mark all read
-          </button>
+          unreadCount() > 0 ? (
+            <button
+              type="button"
+              onClick={markAllRead}
+              className="text-xs text-accent-green font-semibold active:opacity-70 transition-opacity"
+            >
+              Mark all read
+            </button>
+          ) : undefined
         }
       />
 
       <div className="px-4 pt-3 pb-6">
-        {groups.map((group) => (
-          <div key={group.key}>
-            <p className="text-xs uppercase tracking-wider text-slate-500 mt-4 mb-2">{group.label}</p>
-            {group.items.map((n) => (
-              <NotifRow key={n.id} notif={n} onPress={() => markRead(n.id)} />
-            ))}
+        {groups.length === 0 ? (
+          <div className="flex flex-col items-center py-16 gap-3">
+            <span className="text-5xl opacity-20">🔔</span>
+            <p className="text-center text-slate-500 text-sm">No notifications yet.</p>
+            <p className="text-[11px] text-slate-400" dir="rtl">کوئی اطلاع نہیں</p>
           </div>
-        ))}
-
-        {notifications.length === 0 && (
-          <p className="text-center text-slate-500 text-sm py-12">No notifications.</p>
+        ) : (
+          groups.map((group) => (
+            <div key={group.key}>
+              <p className="text-xs uppercase tracking-wider text-slate-500 mt-4 mb-2">{group.label}</p>
+              {group.items.map((n) => (
+                <NotifRow key={n.id} notif={n} onPress={() => markRead(n.id)} />
+              ))}
+            </div>
+          ))
         )}
       </div>
     </div>

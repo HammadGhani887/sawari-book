@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Phone } from "lucide-react";
+import { Phone, Link2, CheckCheck, Pencil, Check, X } from "lucide-react";
 import { ScreenHeader, Card, DateRangeSelector, Badge } from "@/components/ui";
 import { RideEntryCard, ExpenseCard, SettlementRow } from "@/components/cards";
 import PlatformBadge from "@/components/ui/PlatformBadge";
@@ -10,13 +10,21 @@ import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { useRideStore, TODAY } from "@/lib/store/rideStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useDriverStore } from "@/lib/store/driverStore";
+import { useAuthStore } from "@/lib/store/authStore";
+import { useInviteStore } from "@/lib/store/inviteStore";
+import { useFuelStore } from "@/lib/store/fuelStore";
+import toast from "react-hot-toast";
 
 type DateRange = "today" | "week" | "month" | "custom";
-type TabId     = "rides" | "expenses" | "summary";
+type TabId     = "rides" | "expenses" | "summary" | "fuel";
 
-const WEEK_START = "2026-05-01";
+const WEEK_START = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() - 6);
+  return d.toISOString().slice(0, 10);
+})();
 
-function Stat({ icon, value, label, colorClass = "text-white" }: {
+function Stat({ icon, value, label, colorClass = "text-slate-900" }: {
   icon: string; value: string; label: string; colorClass?: string;
 }) {
   return (
@@ -33,21 +41,35 @@ function Stat({ icon, value, label, colorClass = "text-white" }: {
 export default function VehicleDetailPage({ params }: { params: { id: string } }) {
   const vehicleId = params.id;
 
-  const vehicle  = useVehicleStore((s) => s.vehicles.find((v) => v.id === vehicleId));
-  const drivers  = useDriverStore((s) => s.drivers);
-  const allRides = useRideStore((s) => s.rides);
+  const vehicle       = useVehicleStore((s) => s.vehicles.find((v) => v.id === vehicleId));
+  const updateVehicle = useVehicleStore((s) => s.updateVehicle);
+  const getEffective  = useVehicleStore((s) => s.getEffectiveAverage);
+  const drivers       = useDriverStore((s) => s.drivers);
+  const allRides      = useRideStore((s) => s.rides);
+  const fuelLogs      = useFuelStore((s) => s.fuelLogs);
   const { expenses, approveExpense, rejectExpense } = useExpenseStore();
+  const currentUser   = useAuthStore((s) => s.user);
+  const createInvite  = useInviteStore((s) => s.createInvite);
 
   const [dateRange, setDateRange] = useState<DateRange>("today");
-  const [activeTab, setActiveTab]  = useState<TabId>("rides");
+  const [activeTab, setActiveTab] = useState<TabId>("rides");
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied,     setCopied]     = useState(false);
 
+  // Fuel settings edit state
+  const [editingFuel,    setEditingFuel]    = useState(false);
+  const [priceInput,     setPriceInput]     = useState(String(vehicle?.petrolPricePkrL ?? 280));
+  const [avgInput,       setAvgInput]       = useState(String(vehicle?.fuelAverageKmL  ?? 12));
+  const [tankInput,      setTankInput]      = useState(String(vehicle?.tankCapacityLitres ?? ""));
+
+  const effectiveAvg = getEffective(vehicleId, fuelLogs);
   const driver = drivers.find((d) => d.vehicleId === vehicleId);
 
   const filteredRides = useMemo(() => {
     const vRides = allRides.filter((r) => r.vehicleId === vehicleId);
     if (dateRange === "today") return vRides.filter((r) => r.rideTime.startsWith(TODAY));
     if (dateRange === "week")  return vRides.filter((r) => r.rideTime.slice(0, 10) >= WEEK_START);
-    return vRides; // month / custom — show all for mock
+    return vRides;
   }, [allRides, vehicleId, dateRange]);
 
   const filteredExpenses = useMemo(() => {
@@ -66,7 +88,40 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
     { id: "rides",    label: "Rides"    },
     { id: "expenses", label: "Expenses" },
     { id: "summary",  label: "Summary"  },
+    { id: "fuel",     label: "Fuel ⛽"  },
   ];
+
+  function saveFuelSettings() {
+    const price = Number(priceInput);
+    const avg   = Number(avgInput);
+    const tank  = Number(tankInput);
+    if (price <= 0 || avg <= 0) { toast.error("Enter valid price and average"); return; }
+    updateVehicle(vehicleId, {
+      petrolPricePkrL:    price,
+      fuelAverageKmL:     avg,
+      tankCapacityLitres: tank > 0 ? tank : undefined,
+    });
+    toast.success("Fuel settings saved ✓");
+    setEditingFuel(false);
+  }
+
+  function handleGenerateInvite() {
+    const token = createInvite({
+      vehicleId,
+      ownerId:     currentUser?.id   ?? "1",
+      ownerName:   currentUser?.name ?? "Owner",
+      vehicleName: `${vehicle?.makeModel ?? "Vehicle"} · ${vehicle?.plateNumber ?? ""}`,
+    });
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    setInviteLink(`${origin}/invite/${token}`);
+  }
+
+  async function handleCopy() {
+    if (!inviteLink) return;
+    await navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
 
   const title = vehicle
     ? `${vehicle.makeModel} · ${vehicle.plateNumber}`
@@ -78,12 +133,12 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
 
       <div className="flex flex-col gap-4 px-4 pt-4 pb-28">
 
-        {/* ── Vehicle info ── */}
+        {/* Vehicle info */}
         <Card>
           <div className="flex items-start gap-4">
             <span className="text-4xl leading-none shrink-0">🚗</span>
             <div className="flex-1 min-w-0">
-              <p className="text-base font-bold text-white leading-tight">
+              <p className="text-base font-bold text-slate-900 leading-tight">
                 {vehicle?.makeModel ?? "—"}
               </p>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -92,31 +147,83 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
                   <PlatformBadge key={p} platform={p as "indrive" | "yango" | "other" | "private"} />
                 ))}
               </div>
-              {driver && (
-                <a
-                  href={`tel:+92${driver.phone.replace(/\D/g, "").slice(-10)}`}
-                  className="flex items-center gap-1.5 mt-2 text-accent-green active:opacity-70 transition-opacity w-fit"
-                >
-                  <Phone size={13} />
-                  <span className="text-xs font-medium">{driver.name} · {driver.phone}</span>
-                </a>
-              )}
             </div>
           </div>
         </Card>
 
-        {/* ── Date range ── */}
+        {/* Driver card */}
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Driver</p>
+          {driver ? (
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-accent-blueDim flex items-center justify-center shrink-0">
+                <span className="text-base font-bold text-accent-blue">{driver.name[0]}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900">{driver.name}</p>
+                <p className="text-xs text-slate-500">
+                  {driver.phone}
+                  {driver.salaryType === "fixed"
+                    ? ` · Rs ${driver.salaryAmount.toLocaleString()}/mo`
+                    : ` · ${driver.salaryAmount}%`}
+                </p>
+                {driver.cnic && (
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">{driver.cnic}</p>
+                )}
+              </div>
+              <a
+                href={`tel:+92${driver.phone.replace(/\D/g, "").slice(-10)}`}
+                className="text-accent-green active:opacity-70"
+              >
+                <Phone size={18} />
+              </a>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-slate-500">No driver linked to this vehicle.</p>
+              {inviteLink ? (
+                <div className="bg-brand-elevated rounded-xl p-3 flex flex-col gap-2">
+                  <p className="text-xs text-slate-500">Share this link with your driver:</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={inviteLink}
+                      className="flex-1 bg-brand-surface text-xs text-slate-400 px-3 py-2 rounded-lg outline-none font-mono truncate"
+                    />
+                    <button
+                      onClick={handleCopy}
+                      className="flex items-center gap-1 text-accent-green text-xs font-semibold shrink-0"
+                    >
+                      {copied ? <CheckCheck size={13} /> : <Link2 size={13} />}
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={handleGenerateInvite}
+                  className="flex items-center gap-2 text-accent-green text-sm font-semibold active:opacity-70"
+                >
+                  <Link2 size={15} />
+                  Generate Invite Link
+                </button>
+              )}
+            </div>
+          )}
+        </Card>
+
+        {/* Date range */}
         <DateRangeSelector selected={dateRange} onChange={setDateRange} />
 
-        {/* ── KPI strip ── */}
+        {/* KPI strip */}
         <div className="grid grid-cols-3 gap-2">
           <Stat icon="🚗" value={String(filteredRides.length)} label="Rides" />
           <Stat icon="💰" value={formatCurrency(totalRevenue)}  label="Revenue"  colorClass="text-accent-green" />
           <Stat icon="🧾" value={formatCurrency(totalExpenses)} label="Expenses" colorClass="text-status-amber" />
         </div>
 
-        {/* ── Tabs ── */}
-        <div className="flex border-b border-slate-700/50">
+        {/* Tabs */}
+        <div className="flex border-b border-slate-200/50">
           {TABS.map(({ id, label }) => (
             <button
               key={id}
@@ -124,7 +231,7 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
               className={[
                 "flex-1 py-2.5 text-sm font-semibold transition-colors",
                 activeTab === id
-                  ? "border-b-2 border-accent-green text-white"
+                  ? "border-b-2 border-accent-green text-slate-900"
                   : "text-slate-500",
               ].join(" ")}
             >
@@ -133,7 +240,6 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
           ))}
         </div>
 
-        {/* ── Tab content ── */}
         {activeTab === "rides" && (
           <div className="flex flex-col gap-3">
             {filteredRides.length === 0 ? (
@@ -164,21 +270,112 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
 
         {activeTab === "summary" && (
           <Card>
-            <SettlementRow label="Total Revenue"  amount={totalRevenue}  type="revenue" />
-            <SettlementRow label="Total Expenses" amount={totalExpenses} type="expense" />
-            <SettlementRow label="Net"            amount={totalRevenue - totalExpenses} type="profit" />
+            {(() => {
+              const fuelCostToday = fuelLogs
+                .filter((f) => f.vehicleId === vehicleId && (dateRange === "today" ? f.date.startsWith(TODAY) : dateRange === "week" ? f.date.slice(0,10) >= WEEK_START : true))
+                .reduce((s, f) => s + f.amountPkr, 0);
+              const estFuelFromRides = filteredRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
+              const fuelCost = fuelCostToday > 0 ? fuelCostToday : estFuelFromRides;
+              const net = totalRevenue - fuelCost - totalExpenses;
+              return (
+                <>
+                  <SettlementRow label="Total Revenue"  amount={totalRevenue}  type="revenue" />
+                  <SettlementRow label="Fuel Cost"      amount={fuelCost}      type="expense" />
+                  <SettlementRow label="Other Expenses" amount={totalExpenses} type="expense" />
+                  <SettlementRow label="Net Profit"     amount={net}           type="profit"  />
+                </>
+              );
+            })()}
+          </Card>
+        )}
+
+        {activeTab === "fuel" && (
+          <Card>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-slate-900">⛽ Fuel Settings</p>
+              {!editingFuel ? (
+                <button
+                  onClick={() => {
+                    setPriceInput(String(vehicle?.petrolPricePkrL ?? 280));
+                    setAvgInput(String(vehicle?.fuelAverageKmL ?? 12));
+                    setTankInput(String(vehicle?.tankCapacityLitres ?? ""));
+                    setEditingFuel(true);
+                  }}
+                  className="flex items-center gap-1 text-accent-green text-xs font-semibold"
+                >
+                  <Pencil size={12} /> Edit
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={saveFuelSettings} className="flex items-center gap-1 text-accent-green text-xs font-semibold">
+                    <Check size={13} /> Save
+                  </button>
+                  <button onClick={() => setEditingFuel(false)} className="flex items-center gap-1 text-slate-500 text-xs">
+                    <X size={13} /> Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {editingFuel ? (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Petrol Price (Rs/L)</p>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus-within:border-accent-green">
+                    <span className="text-slate-500 text-sm mr-2">Rs</span>
+                    <input type="number" value={priceInput} onChange={(e) => setPriceInput(e.target.value)}
+                      className="flex-1 bg-transparent text-slate-900 text-sm outline-none" />
+                    <span className="text-slate-500 text-sm">/L</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Fuel Average (km/L)</p>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus-within:border-accent-green">
+                    <input type="number" value={avgInput} onChange={(e) => setAvgInput(e.target.value)}
+                      className="flex-1 bg-transparent text-slate-900 text-sm outline-none" />
+                    <span className="text-slate-500 text-sm">km/L</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Tank Capacity (optional)</p>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus-within:border-accent-green">
+                    <input type="number" value={tankInput} onChange={(e) => setTankInput(e.target.value)}
+                      placeholder="e.g. 35"
+                      className="flex-1 bg-transparent text-slate-900 text-sm outline-none placeholder:text-slate-400" />
+                    <span className="text-slate-500 text-sm">L</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-0">
+                {[
+                  { label: "Petrol Price",    value: vehicle?.petrolPricePkrL ? `Rs ${vehicle.petrolPricePkrL}/L` : "Not set" },
+                  { label: "Manual Average",  value: vehicle?.fuelAverageKmL  ? `${vehicle.fuelAverageKmL} km/L`  : "Not set" },
+                  { label: "Auto Average",    value: `${effectiveAvg} km/L (from fill-ups)` },
+                  { label: "Tank Capacity",   value: vehicle?.tankCapacityLitres ? `${vehicle.tankCapacityLitres} L` : "Not set" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+                    <p className="text-sm text-slate-600">{label}</p>
+                    <p className="text-sm font-semibold text-slate-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="text-[11px] text-slate-400 mt-3">
+              Driver sees these settings automatically. If driver updates price/average, it reflects here too.
+            </p>
           </Card>
         )}
 
       </div>
 
-      {/* ── Sticky rides total ── */}
       {activeTab === "rides" && filteredRides.length > 0 && (
         <div className="fixed bottom-16 left-0 right-0 px-4 pb-2 pointer-events-none">
-          <div className="bg-brand-elevated border border-slate-700/50 rounded-2xl px-4 py-3 shadow-lg shadow-black/40 pointer-events-auto">
-            <p className="text-sm font-semibold text-white text-center">
+          <div className="bg-brand-elevated border border-slate-200/50 rounded-2xl px-4 py-3 shadow-lg shadow-black/40 pointer-events-auto">
+            <p className="text-sm font-semibold text-slate-900 text-center">
               Total:{" "}
-              <span className="text-slate-400 font-normal">{filteredRides.length} rides</span>
+              <span className="text-slate-600 font-normal">{filteredRides.length} rides</span>
               <span className="text-slate-600 mx-1">·</span>
               <span className="text-accent-green">{formatCurrency(totalRevenue)}</span>
             </p>

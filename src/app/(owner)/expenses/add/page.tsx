@@ -48,13 +48,13 @@ export default function AddExpensePage() {
 
         {/* 1 — Vehicle */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-white">Vehicle</label>
+          <label className="text-sm font-medium text-slate-900">Vehicle</label>
           <span className="text-xs text-slate-500 font-[system-ui]" dir="rtl">گاڑی منتخب کریں</span>
           <div className="relative mt-0.5">
             <select
               value={vehicleId}
               onChange={(e) => setVehicleId(e.target.value)}
-              className="w-full appearance-none bg-brand-surface text-sm text-white border border-slate-700 rounded-xl py-3 pl-4 pr-10 outline-none focus:ring-2 focus:ring-accent-green focus:border-accent-green"
+              className="w-full appearance-none bg-white shadow-sm text-sm text-slate-900 border border-slate-200 rounded-xl py-3 pl-4 pr-10 outline-none focus:ring-2 focus:ring-accent-green focus:border-accent-green"
             >
               <option value="">Select vehicle</option>
               {vehicles.map((v) => (
@@ -69,7 +69,7 @@ export default function AddExpensePage() {
 
         {/* 2 — Category */}
         <div>
-          <p className="text-sm font-medium text-white mb-2">Category</p>
+          <p className="text-sm font-medium text-slate-900 mb-2">Category</p>
           <div className="flex gap-2 flex-wrap">
             {EXPENSE_CATEGORIES.map((cat) => {
               const isSelected = category === cat.id;
@@ -81,8 +81,8 @@ export default function AddExpensePage() {
                   className={[
                     "px-3 py-2 rounded-full text-xs font-medium transition-all active:scale-95",
                     isSelected
-                      ? "bg-accent-green text-white"
-                      : "bg-brand-surface border border-slate-700 text-slate-300",
+                      ? "bg-accent-green text-white shadow-sm"
+                      : "bg-white border border-slate-200 text-slate-700 shadow-sm",
                   ].join(" ")}
                 >
                   {cat.emoji} {cat.name}
@@ -94,7 +94,7 @@ export default function AddExpensePage() {
 
         {/* 3 — Amount */}
         <div>
-          <p className="text-sm font-medium text-white mb-3">Amount</p>
+          <p className="text-sm font-medium text-slate-900 mb-3">Amount</p>
           <NumericKeypad value={amount} onChange={setAmount} maxLength={6} />
         </div>
 
