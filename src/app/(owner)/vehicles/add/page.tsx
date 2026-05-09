@@ -15,16 +15,14 @@ const FUEL_TYPES: { id: FuelType; label: string }[] = [
   { id: "hybrid", label: "Hybrid" },
 ];
 
-function FieldRow({ label, labelUrdu, optional, children }: {
-  label: string; labelUrdu?: string; optional?: boolean; children: React.ReactNode;
+function FieldRow({ label, labelUrdu, optional }: {
+  label: string; labelUrdu?: string; optional?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <p className="text-sm font-medium text-slate-900">{label}</p>
-        {labelUrdu && <p className="text-xs text-slate-500 font-[system-ui]" dir="rtl">{labelUrdu}</p>}
-        {optional && <Badge type="inactive" label="Optional" />}
-      </div>
+    <div className="flex items-center gap-2">
+      <p className="text-sm font-medium text-slate-900">{label}</p>
+      {labelUrdu && <p className="text-xs text-slate-500 font-[system-ui]" dir="rtl">{labelUrdu}</p>}
+      {optional && <Badge type="inactive" label="Optional" />}
     </div>
   );
 }

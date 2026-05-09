@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Funnel } from "lucide-react";
-import { ScreenHeader, DateRangeSelector } from "@/components/ui";
+import { ScreenHeader } from "@/components/ui";
 import { RideEntryCard } from "@/components/cards";
 import { formatCurrency } from "@/lib/utils/format";
 import { useRideStore, TODAY } from "@/lib/store/rideStore";
@@ -32,6 +32,13 @@ const PAYMENT_OPTIONS = [
   { id: "wallet", label: "Wallet" },
 ] as const;
 
+const DATE_TABS: { id: DateRange; label: string }[] = [
+  { id: "today",  label: "Today"  },
+  { id: "week",   label: "Week"   },
+  { id: "month",  label: "Month"  },
+  { id: "custom", label: "Custom" },
+];
+
 function formatDateLabel(dateStr: string): string {
   const today     = TODAY;
   const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
@@ -58,14 +65,16 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
 }
 
 export default function AllRidesPage() {
-  const rides   = useRideStore((s) => s.rides);
+  const rides    = useRideStore((s) => s.rides);
   const flagRide = useRideStore((s) => s.flagRide);
-  const drivers = useDriverStore((s) => s.drivers);
+  const drivers  = useDriverStore((s) => s.drivers);
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [platform,     setPlatform]     = useState("all");
   const [payment,      setPayment]      = useState("all");
   const [dateRange,    setDateRange]    = useState<DateRange>("today");
+  const [customStart,  setCustomStart]  = useState(TODAY);
+  const [customEnd,    setCustomEnd]    = useState(TODAY);
 
   const driverMap = useMemo(
     () => Object.fromEntries(drivers.map((d) => [d.id, d.name])),
@@ -77,12 +86,17 @@ export default function AllRidesPage() {
       if (platform !== "all" && r.platform !== platform) return false;
       if (payment  !== "all" && r.paymentType !== payment) return false;
       const date = r.rideTime.slice(0, 10);
-      if (dateRange === "today" && date !== TODAY) return false;
-      if (dateRange === "week"  && date < WEEK_START) return false;
-      if (dateRange === "month" && !r.rideTime.startsWith(THIS_MONTH)) return false;
+      if (dateRange === "today"  && date !== TODAY) return false;
+      if (dateRange === "week"   && date < WEEK_START) return false;
+      if (dateRange === "month"  && !r.rideTime.startsWith(THIS_MONTH)) return false;
+      if (dateRange === "custom") {
+        const s = customStart || TODAY;
+        const e = customEnd   || TODAY;
+        if (date < s || date > e) return false;
+      }
       return true;
     });
-  }, [rides, platform, payment, dateRange]);
+  }, [rides, platform, payment, dateRange, customStart, customEnd]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Ride[]>();
@@ -124,10 +138,48 @@ export default function AllRidesPage() {
 
         {isFilterOpen && (
           <div className="flex flex-col gap-3 bg-brand-surface border border-slate-200/30 rounded-2xl p-4">
+
+            {/* Date tabs */}
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Date</p>
-              <DateRangeSelector selected={dateRange} onChange={setDateRange} />
+              <div className="flex gap-2 flex-wrap">
+                {DATE_TABS.map(({ id, label }) => (
+                  <Chip key={id} active={dateRange === id} label={label} onClick={() => setDateRange(id)} />
+                ))}
+              </div>
+
+              {/* Custom date pickers */}
+              {dateRange === "custom" && (
+                <div className="mt-3 flex gap-2">
+                  <div className="flex-1">
+                    <p className="text-[10px] text-slate-500 mb-1">From</p>
+                    <input
+                      type="date"
+                      value={customStart}
+                      max={TODAY}
+                      onChange={(e) => {
+                        setCustomStart(e.target.value);
+                        if (e.target.value > customEnd) setCustomEnd(e.target.value);
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent-green"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] text-slate-500 mb-1">To</p>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      min={customStart}
+                      max={TODAY}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent-green"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Platform filter */}
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Platform</p>
               <div className="flex gap-2 flex-wrap">
@@ -136,6 +188,8 @@ export default function AllRidesPage() {
                 ))}
               </div>
             </div>
+
+            {/* Payment filter */}
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Payment</p>
               <div className="flex gap-2">
@@ -144,6 +198,7 @@ export default function AllRidesPage() {
                 ))}
               </div>
             </div>
+
           </div>
         )}
 
@@ -157,6 +212,11 @@ export default function AllRidesPage() {
               <span className="text-status-red font-semibold">{disputedCount} disputed</span>
             )}
           </div>
+          {dateRange === "custom" && (
+            <p className="text-[10px] text-slate-400 mt-1 text-center">
+              {customStart === customEnd ? customStart : `${customStart} → ${customEnd}`}
+            </p>
+          )}
         </div>
 
         {filteredRides.length === 0 ? (

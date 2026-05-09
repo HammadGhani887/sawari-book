@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Phone, Link2, CheckCheck, Pencil, Check, X } from "lucide-react";
-import { ScreenHeader, Card, DateRangeSelector, Badge } from "@/components/ui";
+import { ScreenHeader, Card, Badge } from "@/components/ui";
 import { RideEntryCard, ExpenseCard, SettlementRow } from "@/components/cards";
 import PlatformBadge from "@/components/ui/PlatformBadge";
 import { formatCurrency } from "@/lib/utils/format";
@@ -13,6 +13,8 @@ import { useDriverStore } from "@/lib/store/driverStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useInviteStore } from "@/lib/store/inviteStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
+import { exportToPDF } from "@/lib/utils/pdfExport";
+import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import toast from "react-hot-toast";
 
 type DateRange = "today" | "week" | "month" | "custom";
@@ -55,6 +57,8 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
   const [activeTab, setActiveTab] = useState<TabId>("rides");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied,     setCopied]     = useState(false);
+  const [customStart, setCustomStart] = useState(TODAY);
+  const [customEnd,   setCustomEnd]   = useState(TODAY);
 
   // Fuel settings edit state
   const [editingFuel,    setEditingFuel]    = useState(false);
@@ -69,15 +73,25 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
     const vRides = allRides.filter((r) => r.vehicleId === vehicleId);
     if (dateRange === "today") return vRides.filter((r) => r.rideTime.startsWith(TODAY));
     if (dateRange === "week")  return vRides.filter((r) => r.rideTime.slice(0, 10) >= WEEK_START);
+    if (dateRange === "custom") {
+      const s = customStart || TODAY;
+      const e = customEnd   || TODAY;
+      return vRides.filter((r) => r.rideTime.slice(0, 10) >= s && r.rideTime.slice(0, 10) <= e);
+    }
     return vRides;
-  }, [allRides, vehicleId, dateRange]);
+  }, [allRides, vehicleId, dateRange, customStart, customEnd]);
 
   const filteredExpenses = useMemo(() => {
     const vExp = expenses.filter((e) => e.vehicleId === vehicleId);
     if (dateRange === "today") return vExp.filter((e) => e.date.startsWith(TODAY));
     if (dateRange === "week")  return vExp.filter((e) => e.date.slice(0, 10) >= WEEK_START);
+    if (dateRange === "custom") {
+      const s = customStart || TODAY;
+      const e = customEnd   || TODAY;
+      return vExp.filter((exp) => exp.date.slice(0, 10) >= s && exp.date.slice(0, 10) <= e);
+    }
     return vExp;
-  }, [expenses, vehicleId, dateRange]);
+  }, [expenses, vehicleId, dateRange, customStart, customEnd]);
 
   const totalRevenue  = filteredRides.reduce((s, r) => s + r.fareAmount, 0);
   const totalExpenses = filteredExpenses
@@ -213,7 +227,50 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
         </Card>
 
         {/* Date range */}
-        <DateRangeSelector selected={dateRange} onChange={setDateRange} />
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+            {(["today", "week", "month", "custom"] as DateRange[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setDateRange(r)}
+                className={[
+                  "flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all active:scale-95",
+                  dateRange === r
+                    ? "bg-accent-green text-white shadow-sm"
+                    : "bg-white text-slate-600 border border-slate-200 shadow-sm",
+                ].join(" ")}
+              >
+                {r === "today" ? "Today" : r === "week" ? "Week" : r === "month" ? "Month" : "Custom"}
+              </button>
+            ))}
+          </div>
+
+          {dateRange === "custom" && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-3 flex gap-3 shadow-sm">
+              <div className="flex-1">
+                <p className="text-[10px] text-slate-500 mb-1">From</p>
+                <input
+                  type="date"
+                  value={customStart}
+                  max={TODAY}
+                  onChange={(e) => { setCustomStart(e.target.value); if (e.target.value > customEnd) setCustomEnd(e.target.value); }}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent-green"
+                />
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] text-slate-500 mb-1">To</p>
+                <input
+                  type="date"
+                  value={customEnd}
+                  min={customStart}
+                  max={TODAY}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent-green"
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* KPI strip */}
         <div className="grid grid-cols-3 gap-2">
@@ -283,6 +340,55 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
                   <SettlementRow label="Fuel Cost"      amount={fuelCost}      type="expense" />
                   <SettlementRow label="Other Expenses" amount={totalExpenses} type="expense" />
                   <SettlementRow label="Net Profit"     amount={net}           type="profit"  />
+                  <button
+                    onClick={() => {
+                      const rangeLabel = dateRange === "custom"
+                        ? customStart === customEnd ? customStart : `${customStart} → ${customEnd}`
+                        : dateRange;
+                      exportToPDF({
+                        title:       "Vehicle Report",
+                        period:      rangeLabel,
+                        vehicleName: vehicle ? `${vehicle.makeModel} · ${vehicle.plateNumber}` : vehicleId,
+                        rows: [
+                          { label: "Total Rides",    value: String(filteredRides.length) },
+                          { label: "Total Revenue",  value: `Rs ${totalRevenue.toLocaleString()}`,  color: "green" },
+                          { label: "Fuel Cost",      value: `Rs ${fuelCost.toLocaleString()}`,      color: "amber" },
+                          { label: "Other Expenses", value: `Rs ${totalExpenses.toLocaleString()}`, color: "amber" },
+                          { label: "Net Profit",     value: `Rs ${net.toLocaleString()}`,           color: net >= 0 ? "green" : "red", bold: true },
+                        ],
+                        rides: filteredRides.map((r) => ({
+                          time:      new Date(r.rideTime).toLocaleString("en-PK", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }),
+                          platform:  r.platform === "indrive" ? "inDrive" : r.platform === "yango" ? "Yango" : "Other",
+                          route:     [r.pickupArea, r.dropoffArea].filter(Boolean).join(" → ") || "—",
+                          fare:      r.fareAmount,
+                          fuelCost:  r.estimatedFuelCost,
+                          boostCost: r.boostCost,
+                          netProfit: (r.estimatedFuelCost !== undefined || r.boostCost !== undefined)
+                            ? r.fareAmount - (r.estimatedFuelCost ?? 0) - (r.boostCost ?? 0)
+                            : undefined,
+                          distance:  r.distanceKm,
+                        })),
+                        expenses: filteredExpenses.map((e) => ({
+                          date:     new Date(e.date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }),
+                          category: EXPENSE_CATEGORIES.find((c) => c.id === e.category)?.name ?? e.category,
+                          amount:   e.amount,
+                          note:     e.note,
+                          status:   e.status,
+                        })),
+                        fuelLogs: fuelLogs
+                          .filter((f) => f.vehicleId === vehicleId)
+                          .map((f) => ({
+                            date:   new Date(f.date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }),
+                            amount: f.amountPkr,
+                            litres: f.litres,
+                            pump:   f.pumpName,
+                          })),
+                      });
+                    }}
+                    className="w-full mt-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium active:opacity-70 transition-opacity"
+                  >
+                    Export PDF 📄
+                  </button>
                 </>
               );
             })()}
