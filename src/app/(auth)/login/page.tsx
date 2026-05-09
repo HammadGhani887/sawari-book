@@ -23,8 +23,7 @@ export default function LoginPage() {
   async function handleLogin() {
     if (!canSubmit) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
-    const result = login(credential.trim(), password);
+    const result = await login(credential.trim(), password);
     setLoading(false);
     if (!result.ok) {
       toast.error(result.error ?? "Login failed");

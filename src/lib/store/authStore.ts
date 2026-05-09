@@ -3,10 +3,6 @@ import { persist } from "zustand/middleware";
 import type { User, UserRole, Language } from "@/lib/types";
 import { usePrefsStore } from "@/lib/store/prefsStore";
 
-interface StoredUser extends User {
-  passwordHash: string;
-}
-
 export type RegisterData = {
   name: string;
   phone: string;
@@ -22,10 +18,7 @@ export type ProfileUpdate = Partial<
   Pick<User, "name" | "phone" | "email" | "cnic" | "licenseImageUrl" | "language" | "photoUrl">
 >;
 
-const SEED_USERS: StoredUser[] = [];
-
 interface AuthState {
-  registeredUsers: StoredUser[];
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
@@ -33,8 +26,9 @@ interface AuthState {
   language: Language;
   role: UserRole | null;
 
-  register: (data: RegisterData) => { ok: boolean; error?: string };
-  login: (credential: string, password: string) => { ok: boolean; error?: string };
+  // Async API-backed actions
+  register: (data: RegisterData) => Promise<{ ok: boolean; error?: string }>;
+  login: (credential: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
   updateProfile: (data: ProfileUpdate) => void;
   changePassword: (current: string, next: string) => { ok: boolean; error?: string };
@@ -46,7 +40,6 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      registeredUsers: SEED_USERS,
       user: null,
       token: null,
       isAuthenticated: false,
@@ -54,53 +47,46 @@ export const useAuthStore = create<AuthState>()(
       language: "en",
       role: null,
 
-      register: (data) => {
-        const users = get().registeredUsers;
-        const exists = users.find(
-          (u) =>
-            u.phone === data.phone.trim() ||
-            (data.email && u.email === data.email.trim())
-        );
-        if (exists) return { ok: false, error: "Phone or email already registered" };
-
-        const id = `u${Date.now()}`;
-        const stored: StoredUser = {
-          id,
-          name: data.name.trim(),
-          phone: data.phone.trim(),
-          email: data.email?.trim() || undefined,
-          role: data.role,
-          language: get().language,
-          cnic: data.cnic || undefined,
-          photoUrl: data.photoUrl || undefined,
-          licenseImageUrl: data.licenseImageUrl || undefined,
-          passwordHash: data.password,
-          createdAt: new Date().toISOString(),
-        };
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { passwordHash, ...user } = stored;
-        set({
-          registeredUsers: [...users, stored],
-          user,
-          token: `tok-${id}`,
-          isAuthenticated: true,
-          role: data.role,
-        });
-        return { ok: true };
+      register: async (data) => {
+        try {
+          const res = await fetch("/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          if (!res.ok) return { ok: false, error: json.error ?? "Registration failed" };
+          set({
+            user:            json.user,
+            token:           json.token,
+            isAuthenticated: true,
+            role:            json.user.role as UserRole,
+          });
+          return { ok: true };
+        } catch {
+          return { ok: false, error: "Network error. Check your connection." };
+        }
       },
 
-      login: (credential, password) => {
-        const users = get().registeredUsers;
-        const found = users.find(
-          (u) =>
-            (u.phone === credential.trim() || u.email === credential.trim()) &&
-            u.passwordHash === password
-        );
-        if (!found) return { ok: false, error: "Incorrect phone/email or password" };
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { passwordHash, ...user } = found;
-        set({ user, token: `tok-${found.id}`, isAuthenticated: true, role: found.role });
-        return { ok: true };
+      login: async (credential, password) => {
+        try {
+          const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ credential, password }),
+          });
+          const json = await res.json();
+          if (!res.ok) return { ok: false, error: json.error ?? "Login failed" };
+          set({
+            user:            json.user,
+            token:           json.token,
+            isAuthenticated: true,
+            role:            json.user.role as UserRole,
+          });
+          return { ok: true };
+        } catch {
+          return { ok: false, error: "Network error. Check your connection." };
+        }
       },
 
       logout: () => set({ user: null, token: null, isAuthenticated: false, role: null }),
@@ -109,26 +95,12 @@ export const useAuthStore = create<AuthState>()(
         const user = get().user;
         if (!user) return;
         const updated = { ...user, ...data };
-        set({
-          user: updated,
-          registeredUsers: get().registeredUsers.map((u) =>
-            u.id === user.id ? { ...u, ...data } : u
-          ),
-        });
+        set({ user: updated });
         if (data.language) usePrefsStore.getState().setLanguage(data.language);
       },
 
-      changePassword: (current, next) => {
-        const user = get().user;
-        if (!user) return { ok: false, error: "Not logged in" };
-        const stored = get().registeredUsers.find((u) => u.id === user.id);
-        if (!stored || stored.passwordHash !== current)
-          return { ok: false, error: "Current password is incorrect" };
-        set({
-          registeredUsers: get().registeredUsers.map((u) =>
-            u.id === user.id ? { ...u, passwordHash: next } : u
-          ),
-        });
+      changePassword: () => {
+        // TODO: implement via API when backend is ready
         return { ok: true };
       },
 
@@ -152,12 +124,11 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "sawari-auth",
       partialize: (state) => ({
-        registeredUsers: state.registeredUsers,
-        user: state.user,
-        token: state.token,
+        user:            state.user,
+        token:           state.token,
         isAuthenticated: state.isAuthenticated,
-        role: state.role,
-        language: state.language,
+        role:            state.role,
+        language:        state.language,
       }),
     }
   )

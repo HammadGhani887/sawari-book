@@ -77,7 +77,7 @@ function RegisterDriverForm() {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 400));
 
-    const result = register({
+    const result = await register({
       name:            name.trim(),
       phone:           phone.trim(),
       password,

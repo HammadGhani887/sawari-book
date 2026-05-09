@@ -41,10 +41,9 @@ export default function RegisterOwnerPage() {
 
   async function handleSubmit() {
     if (!canSubmit) return;
-    if (!pwdMatch) { toast.error("Passwords don't match"); return; }
     setSaving(true);
     await new Promise((r) => setTimeout(r, 400));
-    const result = register({
+    const result = await register({
       name:     name.trim(),
       phone:    phone.trim(),
       email:    email.trim() || undefined,
