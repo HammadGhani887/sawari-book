@@ -139,7 +139,6 @@ export default function MyDayPage() {
   const totalFuelCost   = actualFuelLogs > 0 ? actualFuelLogs : fuelExpenses > 0 ? fuelExpenses : estFuelRides;
   const fuelLabel       = actualFuelLogs > 0 ? "actual" : fuelExpenses > 0 ? "expense" : estFuelRides > 0 ? "est." : null;
   const otherExpenses   = dayExpenses.filter((e) => e.category !== "fuel").reduce((s, e) => s + e.amount, 0);
-  const totalExpenses   = dayExpenses.reduce((s, e) => s + e.amount, 0);
   const netEarnings     = totalRevenue - totalFuelCost - otherExpenses;
 
   // Distance & efficiency (only if rides have distanceKm)

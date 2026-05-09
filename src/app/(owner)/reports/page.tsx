@@ -89,28 +89,27 @@ export default function ReportsPage() {
 
   // Filter rides
   const filteredRides = useMemo(() => {
-    let base = vehicleId === "all" ? rides : rides.filter((r) => r.vehicleId === vehicleId);
-    base = base.filter((r) => {
+    const base = vehicleId === "all" ? rides : rides.filter((r) => r.vehicleId === vehicleId);
+    return base.filter((r) => {
       const d = r.rideTime.slice(0, 10);
       return d >= rangeStart && d <= rangeEnd;
     });
-    return base;
   }, [rides, vehicleId, rangeStart, rangeEnd]);
 
   // Filter approved expenses
   const filteredExpenses = useMemo(() => {
-    let base = vehicleId === "all" ? expenses : expenses.filter((e) => e.vehicleId === vehicleId);
-    base = base.filter((e) => e.status === "approved");
-    base = base.filter((e) => {
-      const d = e.date.slice(0, 10);
-      return d >= rangeStart && d <= rangeEnd;
-    });
-    return base;
+    const base = vehicleId === "all" ? expenses : expenses.filter((e) => e.vehicleId === vehicleId);
+    return base
+      .filter((e) => e.status === "approved")
+      .filter((e) => {
+        const d = e.date.slice(0, 10);
+        return d >= rangeStart && d <= rangeEnd;
+      });
   }, [expenses, vehicleId, rangeStart, rangeEnd]);
 
   // Filter fuel logs
   const filteredFuel = useMemo(() => {
-    let base = vehicleId === "all" ? fuelLogs : fuelLogs.filter((f) => f.vehicleId === vehicleId);
+    const base = vehicleId === "all" ? fuelLogs : fuelLogs.filter((f) => f.vehicleId === vehicleId);
     return base.filter((f) => {
       const d = f.date.slice(0, 10);
       return d >= rangeStart && d <= rangeEnd;

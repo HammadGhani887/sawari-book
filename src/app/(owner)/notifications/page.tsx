@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { ScreenHeader } from "@/components/ui";
 import { useNotificationStore } from "@/lib/store/notificationStore";
 import type { Notification } from "@/lib/types";

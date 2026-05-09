@@ -67,7 +67,6 @@ export default function EarningsPage() {
     ? Math.round(totalRevenue * (driver.salaryAmount / 100))
     : 0;
 
-  const isPending  = !settlement || settlement.status !== "settled";
   const isSettled  = settlement?.status === "settled";
 
   // Weekly chart — 7 days ending today
