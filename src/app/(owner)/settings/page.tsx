@@ -86,7 +86,6 @@ export default function SettingsPage() {
   }
 
   function handleLogout() {
-    if (!window.confirm("Are you sure you want to logout?")) return;
     logout();
     router.replace("/login");
   }
