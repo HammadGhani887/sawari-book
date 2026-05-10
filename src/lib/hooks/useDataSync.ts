@@ -37,16 +37,7 @@ export function useDataSync() {
             api.get("/expenses"),
             api.get("/fuel"),
           ]);
-          useVehicleStore.setState((s) => ({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            vehicles: vehiclesRes.data.map((v: any) => ({
-              ...v,
-              // Preserve local fuel settings if DB doesn't have them yet
-              fuelAverageKmL:     v.fuelAverageKmL     ?? s.vehicles.find((x) => x.id === v.id)?.fuelAverageKmL,
-              petrolPricePkrL:    v.petrolPricePkrL    ?? s.vehicles.find((x) => x.id === v.id)?.petrolPricePkrL,
-              tankCapacityLitres: v.tankCapacityLitres ?? s.vehicles.find((x) => x.id === v.id)?.tankCapacityLitres,
-            })),
-          }));
+          useVehicleStore.setState({ vehicles: vehiclesRes.data });
           // Sync drivers from DB (replaces any stale local-only entries)
           if (Array.isArray(driversRes.data)) {
             useDriverStore.setState({ drivers: driversRes.data });

@@ -126,18 +126,46 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
     { id: "fuel",     label: "Fuel ⛽"  },
   ];
 
-  function saveFuelSettings() {
+  async function saveFuelSettings() {
     const price = Number(priceInput);
     const avg   = Number(avgInput);
     const tank  = Number(tankInput);
     if (price <= 0 || avg <= 0) { toast.error("Enter valid price and average"); return; }
-    updateVehicle(vehicleId, {
-      petrolPricePkrL:    price,
-      fuelAverageKmL:     avg,
-      tankCapacityLitres: tank > 0 ? tank : undefined,
-    });
-    toast.success("Fuel settings saved ✓");
-    setEditingFuel(false);
+    
+    try {
+      // Save to DB via API
+      const res = await fetch(`/api/vehicles/${vehicleId}`, {
+        method:  "PUT",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          petrolPricePkrL:    price,
+          fuelAverageKmL:     avg,
+          tankCapacityLitres: tank > 0 ? tank : null,
+        }),
+      });
+
+      if (!res.ok) {
+        toast.error("Failed to save settings");
+        return;
+      }
+
+      const updated = await res.json();
+      
+      // Update local store
+      updateVehicle(vehicleId, {
+        petrolPricePkrL:    updated.petrolPricePkrL,
+        fuelAverageKmL:     updated.fuelAverageKmL,
+        tankCapacityLitres: updated.tankCapacityLitres,
+      });
+
+      toast.success("Fuel settings saved ✓");
+      setEditingFuel(false);
+    } catch {
+      toast.error("Network error");
+    }
   }
 
   async function handleGenerateInvite() {

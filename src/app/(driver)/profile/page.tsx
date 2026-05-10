@@ -22,6 +22,7 @@ function formatCnic(raw: string) {
 export default function DriverProfilePage() {
   const router         = useRouter();
   const user           = useAuthStore((s) => s.user);
+  const token          = useAuthStore((s) => s.token);
   const { logout }     = useAuthStore();
   const updateProfile  = useAuthStore((s) => s.updateProfile);
   const changePassword = useAuthStore((s) => s.changePassword);
@@ -314,12 +315,42 @@ export default function DriverProfilePage() {
 
             {/* Save button */}
             <button
-              onClick={() => {
+              onClick={async () => {
                 const price = Number(priceInput);
                 const avg   = Number(avgInput);
                 if (price <= 0 || avg <= 0) { toast.error("Enter valid price and average"); return; }
-                updateVehicle(vehicleId, { petrolPricePkrL: price, fuelAverageKmL: avg });
-                toast.success("Fuel settings saved ✓ Owner can see this");
+                
+                try {
+                  // Save to DB via API
+                  const res = await fetch(`/api/vehicles/${vehicleId}`, {
+                    method:  "PUT",
+                    headers: {
+                      "Content-Type":  "application/json",
+                      "Authorization": `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                      petrolPricePkrL: price,
+                      fuelAverageKmL:  avg,
+                    }),
+                  });
+
+                  if (!res.ok) {
+                    toast.error("Failed to save settings");
+                    return;
+                  }
+
+                  const updated = await res.json();
+                  
+                  // Update local store
+                  updateVehicle(vehicleId, {
+                    petrolPricePkrL: updated.petrolPricePkrL,
+                    fuelAverageKmL:  updated.fuelAverageKmL,
+                  });
+
+                  toast.success("Fuel settings saved ✓ Owner can see this");
+                } catch {
+                  toast.error("Network error");
+                }
               }}
               className="w-full mt-3 py-2.5 rounded-xl bg-accent-blue text-white text-sm font-semibold active:opacity-80 transition-opacity"
             >

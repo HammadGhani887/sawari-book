@@ -106,17 +106,21 @@ model User {
 }
 
 model Vehicle {
-  id              String    @id @default(uuid())
-  ownerId         String
-  plateNumber     String    @unique
-  makeModel       String
-  fuelType        FuelType  @default(PETROL)
-  platforms       Json      @default("[]")
-  insuranceExpiry DateTime?
-  photoUrl        String?
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  ownerId            String
+  plateNumber        String    @unique
+  makeModel          String
+  fuelType           FuelType  @default(PETROL)
+  platforms          Json      @default("[]")
+  insuranceExpiry    DateTime?
+  photoUrl           String?
+  isActive           Boolean   @default(true)
+  // Fuel settings (shared between owner and driver)
+  fuelAverageKmL     Decimal?  @db.Decimal(5, 2)
+  petrolPricePkrL    Decimal?  @db.Decimal(7, 2)
+  tankCapacityLitres Decimal?  @db.Decimal(5, 2)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   owner             User               @relation("VehicleOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   driverAssignments DriverAssignment[]

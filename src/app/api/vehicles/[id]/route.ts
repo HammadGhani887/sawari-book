@@ -56,13 +56,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const updated = await prisma.vehicle.update({
     where: { id: params.id },
     data: {
-      makeModel:       body.makeModel       ?? undefined,
-      plateNumber:     body.plateNumber     ? body.plateNumber.toUpperCase() : undefined,
-      fuelType:        body.fuelType        ? body.fuelType.toUpperCase()    : undefined,
-      platforms:       body.platforms       ?? undefined,
-      insuranceExpiry: body.insuranceExpiry ? new Date(body.insuranceExpiry) : undefined,
-      photoUrl:        body.photoUrl        ?? undefined,
-      isActive:        body.isActive        ?? undefined,
+      makeModel:          body.makeModel       ?? undefined,
+      plateNumber:        body.plateNumber     ? body.plateNumber.toUpperCase() : undefined,
+      fuelType:           body.fuelType        ? body.fuelType.toUpperCase()    : undefined,
+      platforms:          body.platforms       ?? undefined,
+      insuranceExpiry:    body.insuranceExpiry ? new Date(body.insuranceExpiry) : undefined,
+      photoUrl:           body.photoUrl        ?? undefined,
+      fuelAverageKmL:     body.fuelAverageKmL !== undefined ? (body.fuelAverageKmL ? Number(body.fuelAverageKmL) : null) : undefined,
+      petrolPricePkrL:    body.petrolPricePkrL !== undefined ? (body.petrolPricePkrL ? Number(body.petrolPricePkrL) : null) : undefined,
+      tankCapacityLitres: body.tankCapacityLitres !== undefined ? (body.tankCapacityLitres ? Number(body.tankCapacityLitres) : null) : undefined,
+      isActive:           body.isActive        ?? undefined,
     },
   });
 

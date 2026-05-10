@@ -6,7 +6,8 @@ function formatVehicle(v: {
   id: string; ownerId: string; plateNumber: string; makeModel: string;
   fuelType: string; platforms: unknown; insuranceExpiry: Date | null;
   photoUrl: string | null; isActive: boolean;
-}, extra?: { fuelAverageKmL?: number; petrolPricePkrL?: number; tankCapacityLitres?: number }) {
+  fuelAverageKmL?: unknown; petrolPricePkrL?: unknown; tankCapacityLitres?: unknown;
+}) {
   return {
     id:                 v.id,
     ownerId:            v.ownerId,
@@ -17,9 +18,9 @@ function formatVehicle(v: {
     insuranceExpiry:    v.insuranceExpiry?.toISOString().slice(0, 10) ?? undefined,
     photoUrl:           v.photoUrl ?? undefined,
     isActive:           v.isActive,
-    fuelAverageKmL:     extra?.fuelAverageKmL,
-    petrolPricePkrL:    extra?.petrolPricePkrL,
-    tankCapacityLitres: extra?.tankCapacityLitres,
+    fuelAverageKmL:     v.fuelAverageKmL ? Number(v.fuelAverageKmL) : undefined,
+    petrolPricePkrL:    v.petrolPricePkrL ? Number(v.petrolPricePkrL) : undefined,
+    tankCapacityLitres: v.tankCapacityLitres ? Number(v.tankCapacityLitres) : undefined,
   };
 }
 
@@ -50,23 +51,19 @@ export async function POST(req: NextRequest) {
 
   const vehicle = await prisma.vehicle.create({
     data: {
-      ownerId:         auth.userId,
-      plateNumber:     body.plateNumber.toUpperCase(),
-      makeModel:       body.makeModel,
-      fuelType:        (body.fuelType ?? "petrol").toUpperCase(),
-      platforms:       body.platforms ?? [],
-      insuranceExpiry: body.insuranceExpiry ? new Date(body.insuranceExpiry) : null,
-      photoUrl:        body.photoUrl ?? null,
-      isActive:        true,
+      ownerId:            auth.userId,
+      plateNumber:        body.plateNumber.toUpperCase(),
+      makeModel:          body.makeModel,
+      fuelType:           (body.fuelType ?? "petrol").toUpperCase(),
+      platforms:          body.platforms ?? [],
+      insuranceExpiry:    body.insuranceExpiry ? new Date(body.insuranceExpiry) : null,
+      photoUrl:           body.photoUrl ?? null,
+      fuelAverageKmL:     body.fuelAverageKmL ? Number(body.fuelAverageKmL) : null,
+      petrolPricePkrL:    body.petrolPricePkrL ? Number(body.petrolPricePkrL) : null,
+      tankCapacityLitres: body.tankCapacityLitres ? Number(body.tankCapacityLitres) : null,
+      isActive:           true,
     },
   });
 
-  return NextResponse.json(
-    formatVehicle(vehicle, {
-      fuelAverageKmL:     body.fuelAverageKmL,
-      petrolPricePkrL:    body.petrolPricePkrL,
-      tankCapacityLitres: body.tankCapacityLitres,
-    }),
-    { status: 201 }
-  );
+  return NextResponse.json(formatVehicle(vehicle), { status: 201 });
 }
