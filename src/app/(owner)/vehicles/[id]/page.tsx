@@ -15,6 +15,7 @@ import { useFuelStore } from "@/lib/store/fuelStore";
 import { exportToPDF } from "@/lib/utils/pdfExport";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import toast from "react-hot-toast";
+import api from "@/lib/services/api";
 
 type DateRange = "today" | "week" | "month" | "custom";
 type TabId     = "rides" | "expenses" | "summary" | "fuel";
@@ -42,7 +43,7 @@ function Stat({ icon, value, label, colorClass = "text-slate-900" }: {
 export default function VehicleDetailPage({ params }: { params: { id: string } }) {
   const vehicleId = params.id;
 
-  const vehicle       = useVehicleStore((s) => s.vehicles.find((v) => v.id === vehicleId));
+  const storeVehicle = useVehicleStore((s) => s.vehicles.find((v) => v.id === vehicleId));
   const updateVehicle = useVehicleStore((s) => s.updateVehicle);
   const getEffective  = useVehicleStore((s) => s.getEffectiveAverage);
   const drivers       = useDriverStore((s) => s.drivers);
@@ -50,6 +51,27 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
   const fuelLogs      = useFuelStore((s) => s.fuelLogs);
   const { expenses, approveExpense, rejectExpense } = useExpenseStore();
   const token         = useAuthStore((s) => s.token);
+
+  // State for vehicle data (fetched fresh from DB)
+  const [vehicle, setVehicle] = useState(storeVehicle);
+
+  // Fetch vehicle fresh from DB on mount
+  useEffect(() => {
+    async function fetchVehicle() {
+      try {
+        const res = await api.get(`/vehicles/${vehicleId}`);
+        if (res.data) {
+          setVehicle(res.data);
+          // Also update store
+          updateVehicle(vehicleId, res.data);
+        }
+      } catch {
+        // Use store data as fallback
+        setVehicle(storeVehicle);
+      }
+    }
+    fetchVehicle();
+  }, [vehicleId, storeVehicle, updateVehicle]);
 
   const [dateRange, setDateRange] = useState<DateRange>("today");
   const [activeTab, setActiveTab] = useState<TabId>("rides");
