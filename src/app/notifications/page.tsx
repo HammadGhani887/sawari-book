@@ -2,6 +2,7 @@
 
 import { ScreenHeader } from "@/components/ui";
 import { useNotificationStore } from "@/lib/store/notificationStore";
+import { useAuthStore } from "@/lib/store/authStore";
 import type { Notification } from "@/lib/types";
 
 function formatTimeAgo(createdAt: string): string {
@@ -34,12 +35,15 @@ const TYPE_ICON: Record<string, string> = {
   anomaly:          "⚠️",
   expense_pending:  "🧾",
   expense_approved: "✅",
+  expense_rejected: "❌",
   settlement_ready: "💰",
 };
 
-function NotifRow({ notif, onPress }: { notif: Notification; onPress: () => void }) {
-  const isAmber = notif.type === "anomaly" || notif.type === "expense_pending";
+function NotifRow({ notif, role, onPress }: { notif: Notification; role?: string; onPress: () => void }) {
+  const isAmber = notif.type === "anomaly" || notif.type === "expense_pending" || notif.type === "expense_rejected";
   const icon    = TYPE_ICON[notif.type] ?? "🔔";
+  const accentClass = role === "owner" ? (isAmber ? "bg-status-amber" : "bg-accent-green") : (isAmber ? "bg-status-amber" : "bg-accent-blue");
+  const dimClass = role === "owner" ? (isAmber ? "bg-status-amberDim" : "bg-accent-greenDim") : (isAmber ? "bg-status-amberDim" : "bg-accent-blueDim");
 
   return (
     <button
@@ -47,7 +51,7 @@ function NotifRow({ notif, onPress }: { notif: Notification; onPress: () => void
       onClick={onPress}
       className={[
         "w-full flex items-start gap-3 py-3 px-4 rounded-xl mb-2 text-left active:opacity-70 transition-opacity",
-        notif.isRead ? "opacity-60 bg-white" : isAmber ? "bg-status-amberDim" : "bg-accent-greenDim",
+        notif.isRead ? "opacity-60 bg-white" : dimClass,
       ].join(" ")}
     >
       <span className="text-xl leading-none shrink-0 mt-0.5">{icon}</span>
@@ -57,7 +61,7 @@ function NotifRow({ notif, onPress }: { notif: Notification; onPress: () => void
         <p className="text-[10px] text-slate-400 mt-1">{formatTimeAgo(notif.createdAt)}</p>
       </div>
       {!notif.isRead && (
-        <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${isAmber ? "bg-status-amber" : "bg-accent-green"}`} />
+        <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${accentClass}`} />
       )}
     </button>
   );
@@ -65,6 +69,7 @@ function NotifRow({ notif, onPress }: { notif: Notification; onPress: () => void
 
 export default function NotificationsPage() {
   const { notifications, markRead, markAllRead, unreadCount } = useNotificationStore();
+  const role = useAuthStore((s) => s.user?.role);
 
   const groups: { label: string; key: string; items: Notification[] }[] = [
     { label: "Today",     key: "today",     items: notifications.filter((n) => getGroup(n.createdAt) === "today")     },
@@ -77,12 +82,13 @@ export default function NotificationsPage() {
       <ScreenHeader
         title="Notifications"
         titleUrdu="اطلاعات"
+        showBack
         rightAction={
           unreadCount() > 0 ? (
             <button
               type="button"
               onClick={markAllRead}
-              className="text-xs text-accent-green font-semibold active:opacity-70 transition-opacity"
+              className={`text-xs font-semibold active:opacity-70 transition-opacity ${role === 'owner' ? 'text-accent-green' : 'text-accent-blue'}`}
             >
               Mark all read
             </button>
@@ -102,7 +108,7 @@ export default function NotificationsPage() {
             <div key={group.key}>
               <p className="text-xs uppercase tracking-wider text-slate-500 mt-4 mb-2">{group.label}</p>
               {group.items.map((n) => (
-                <NotifRow key={n.id} notif={n} onPress={() => markRead(n.id)} />
+                <NotifRow key={n.id} notif={n} role={role} onPress={() => markRead(n.id)} />
               ))}
             </div>
           ))

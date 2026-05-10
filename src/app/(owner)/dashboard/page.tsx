@@ -3,7 +3,6 @@
 import { useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
 import { Card } from "@/components/ui";
 import { KPICard, VehicleCard } from "@/components/cards";
 import { WeeklyBarChart } from "@/components/charts";
@@ -11,11 +10,12 @@ import { useAuthStore } from "@/lib/store/authStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { useRideStore, TODAY } from "@/lib/store/rideStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
-import { useNotificationStore } from "@/lib/store/notificationStore";
 import { useDriverStore } from "@/lib/store/driverStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
-import { formatCurrency, getGreeting, formatDate } from "@/lib/utils/format";
+import { formatCurrency, getGreeting } from "@/lib/utils/format";
 import { Calculator } from "lucide-react";
+import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
+import { ScreenHeader } from "@/components/ui";
 import api from "@/lib/services/api";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -30,7 +30,6 @@ export default function OwnerDashboardPage() {
   const expenses    = useExpenseStore((s) => s.expenses);
   const drivers     = useDriverStore((s) => s.drivers);
   const fuelLogs    = useFuelStore((s) => s.fuelLogs);
-  const unreadCount = useNotificationStore((s) => s.unreadCount)();
 
   // Refresh rides on mount to get latest data with fuel costs
   useEffect(() => {
@@ -170,28 +169,12 @@ export default function OwnerDashboardPage() {
   }, [vehicles, todayRides, rides, drivers]);
 
   return (
-    <div className="px-4 pt-5 pb-4 flex flex-col gap-5">
-
-      {/* ── Greeting + bell ── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-slate-900 leading-tight">
-            {getGreeting()}, {firstName}
-          </h1>
-          <p className="text-sm text-slate-600 mt-0.5">{formatDate(new Date().toISOString())}</p>
-        </div>
-
-        <Link href="/notifications" className="relative mt-0.5 shrink-0">
-          <div className="w-10 h-10 rounded-full bg-brand-surface flex items-center justify-center text-slate-700 active:text-slate-900 transition-colors">
-            <Bell size={20} />
-          </div>
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-status-red rounded-full text-xs font-bold flex items-center justify-center text-white leading-none pointer-events-none">
-              {unreadCount}
-            </span>
-          )}
-        </Link>
-      </div>
+    <div className="px-4 pt-4 pb-4 flex flex-col gap-5">
+      <ScreenHeader
+        title={`${getGreeting()}, ${firstName}`}
+        titleUrdu="خوش آمدید"
+        showNotifications
+      />
 
       {/* ── KPI grid ── */}
       <div className="grid grid-cols-2 gap-3">
@@ -288,6 +271,38 @@ export default function OwnerDashboardPage() {
         <p className="text-sm font-medium text-slate-700 mb-3">This Week&apos;s Revenue</p>
         <WeeklyBarChart data={weeklyData} height={180} />
       </Card>
+
+      {/* ── Recent Expenses ── */}
+      {expenses.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-base font-bold text-slate-900 leading-tight">Recent Expenses</p>
+              <p className="text-[11px] text-slate-500 mt-0.5 font-[system-ui]" dir="rtl">حالیہ اخراجات</p>
+            </div>
+            <Link href="/expenses" className="text-xs font-semibold text-status-amber active:opacity-60 transition-opacity">
+              See All →
+            </Link>
+          </div>
+          <div className="flex flex-col gap-3">
+            {expenses
+              .sort((a, b) => b.date.localeCompare(a.date))
+              .slice(0, 3)
+              .map((exp) => (
+                <div key={exp.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{EXPENSE_CATEGORIES.find(c => c.id === exp.category)?.emoji || "🧾"}</span>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{EXPENSE_CATEGORIES.find(c => c.id === exp.category)?.name || exp.category}</p>
+                      <p className="text-[10px] text-slate-500">{new Date(exp.date).toLocaleDateString("en-PK", { day: "numeric", month: "short" })} · {exp.status}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-status-amber tabular-nums">− {formatCurrency(exp.amount)}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Quick Links ── */}
       <div className="grid grid-cols-2 gap-3">

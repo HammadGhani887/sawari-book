@@ -7,6 +7,7 @@ import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { useDriverStore } from "@/lib/store/driverStore";
+import { useNotificationStore } from "@/lib/store/notificationStore";
 import api from "@/lib/services/api";
 
 /**
@@ -29,34 +30,35 @@ export function useDataSync() {
     async function sync() {
       try {
         if (role === "owner") {
-          // Owner: fetch vehicles, drivers, rides, expenses, fuel
-          const [vehiclesRes, driversRes, ridesRes, expensesRes, fuelRes] = await Promise.all([
+          // Owner: fetch vehicles, drivers, rides, expenses, fuel, notifications
+          const [vehiclesRes, driversRes, ridesRes, expensesRes, fuelRes, notifRes] = await Promise.all([
             api.get("/vehicles"),
             api.get("/drivers"),
             api.get("/rides"),
             api.get("/expenses"),
             api.get("/fuel"),
+            api.get("/notifications"),
           ]);
           useVehicleStore.setState({ vehicles: vehiclesRes.data });
-          // Sync drivers from DB (replaces any stale local-only entries)
           if (Array.isArray(driversRes.data)) {
             useDriverStore.setState({ drivers: driversRes.data });
           }
           useRideStore.setState({ rides: ridesRes.data });
           useExpenseStore.setState({ expenses: expensesRes.data });
           useFuelStore.setState({ fuelLogs: fuelRes.data });
+          useNotificationStore.setState({ notifications: notifRes.data });
         } else {
-          // Driver: fetch their assignment + vehicle info + rides/expenses/fuel
-          const [driversRes, ridesRes, expensesRes, fuelRes] = await Promise.all([
+          // Driver: fetch their assignment + vehicle info + rides/expenses/fuel + notifications
+          const [driversRes, ridesRes, expensesRes, fuelRes, notifRes] = await Promise.all([
             api.get("/drivers"),
             api.get("/rides"),
             api.get("/expenses"),
             api.get("/fuel"),
+            api.get("/notifications"),
           ]);
           // Sync driver's own profile/assignment into driverStore
           if (Array.isArray(driversRes.data) && driversRes.data.length > 0) {
             useDriverStore.setState({ drivers: driversRes.data });
-            // Also sync the assigned vehicle into vehicleStore so home page can show it
             const vehicleId = driversRes.data[0]?.vehicleId;
             if (vehicleId) {
               try {
@@ -72,13 +74,14 @@ export function useDataSync() {
                   });
                 }
               } catch {
-                // Vehicle fetch failed, continue without it
+                // Vehicle fetch failed
               }
             }
           }
           useRideStore.setState({ rides: ridesRes.data });
           useExpenseStore.setState({ expenses: expensesRes.data });
           useFuelStore.setState({ fuelLogs: fuelRes.data });
+          useNotificationStore.setState({ notifications: notifRes.data });
         }
       } catch {
         // Silently fall back to local store

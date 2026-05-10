@@ -51,6 +51,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(result);
 }
 
+import { sendPushNotification } from "@/app/api/_lib/push";
+
 export async function POST(req: NextRequest) {
   const auth = verifyAuth(req);
   if (!auth) return unauthorized();
@@ -74,7 +76,33 @@ export async function POST(req: NextRequest) {
       status,
       date:       body.date ? new Date(body.date) : new Date(),
     },
+    include: {
+      vehicle: true,
+      logger: true,
+    }
   });
+
+  // Notify owner if driver submitted
+  if (auth.role === "driver") {
+    try {
+      const title = "Expense for Approval";
+      const body = `${expense.logger.name} reported ₨${Number(expense.amount).toLocaleString()} for ${expense.category.toLowerCase()}`;
+      
+      await prisma.notification.create({
+        data: {
+          userId: expense.vehicle.ownerId,
+          type:   "expense_pending",
+          title,
+          body,
+        }
+      });
+
+      // Send Push Notification
+      await sendPushNotification(expense.vehicle.ownerId, { title, body });
+    } catch (err) {
+      console.error("Failed to notify owner:", err);
+    }
+  }
 
   return NextResponse.json({
     id:         expense.id,

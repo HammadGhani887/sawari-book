@@ -13,7 +13,6 @@ import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { useDailySnapshotStore } from "@/lib/store/dailySnapshotStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
-import { useNotificationStore } from "@/lib/store/notificationStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import { saveRideOffline } from "@/hooks/useOfflineQueue";
 import api from "@/lib/services/api";
@@ -37,9 +36,6 @@ export default function AddRidePage() {
   const getPetrolPrice  = useVehicleStore((s) => s.getPetrolPrice);
   const getFuelAverage  = useVehicleStore((s) => s.getFuelAverage);
   const upsertSnapshot  = useDailySnapshotStore((s) => s.upsertSnapshot);
-  const addNotif        = useNotificationStore((s) => s.addNotification);
-  const driverName      = useAuthStore((s) => s.user?.name ?? "Driver");
-  const ownerId         = useVehicleStore((s) => s.vehicles.find((v) => v.id === driver?.vehicleId)?.ownerId ?? "");
   const vid             = driver?.vehicleId ?? "";
   const effectiveAvg    = getEffective(vid, fuelLogs);
   const petrolPrice     = getPetrolPrice(vid);
@@ -153,16 +149,7 @@ export default function AddRidePage() {
         });
       }
 
-      // Notify owner about new ride
-      if (ownerId) {
-        const platformLabel = platform === "indrive" ? "inDrive" : platform === "yango" ? "Yango" : "Other";
-        addNotif({
-          userId: ownerId,
-          type:   "ride_logged",
-          title:  `${driverName} logged ₨${fareNum.toLocaleString()} on ${platformLabel}`,
-          body:   [pickup, drop].filter(Boolean).join(" → ") || "",
-        });
-      }
+      // Notify owner about new ride (Handled by backend)
 
       // Save daily snapshot after adding ride
       if (vid && driver?.id) {

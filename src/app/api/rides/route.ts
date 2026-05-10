@@ -60,6 +60,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(result);
 }
 
+import { sendPushNotification } from "@/app/api/_lib/push";
+
 export async function POST(req: NextRequest) {
   const auth = verifyAuth(req);
   if (!auth) return unauthorized();
@@ -84,7 +86,31 @@ export async function POST(req: NextRequest) {
       isDisputed:         false,
       rideTime:           body.rideTime ? new Date(body.rideTime) : new Date(),
     },
+    include: {
+      vehicle: true,
+      driver: true,
+    }
   });
+
+  // Notify owner
+  try {
+    const title = "New Ride Logged";
+    const body = `${ride.driver.name} logged ₨${Number(ride.fareAmount).toLocaleString()} on ${ride.platform.toLowerCase()}`;
+    
+    await prisma.notification.create({
+      data: {
+        userId: ride.vehicle.ownerId,
+        type:   "ride_logged",
+        title,
+        body,
+      }
+    });
+
+    // Send Push Notification
+    await sendPushNotification(ride.vehicle.ownerId, { title, body });
+  } catch (err) {
+    console.error("Failed to notify owner:", err);
+  }
 
   return NextResponse.json({
     id:                ride.id,

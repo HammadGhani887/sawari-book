@@ -8,8 +8,9 @@ import { useRideStore, TODAY } from "@/lib/store/rideStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
-import { formatCurrency, getGreeting, formatDate } from "@/lib/utils/format";
+import { formatCurrency, getGreeting } from "@/lib/utils/format";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
+import { ScreenHeader } from "@/components/ui";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 
 function MiniKPI({ icon, value, label, colorClass = "text-slate-900", sub }: {
@@ -190,14 +191,12 @@ export default function DriverHomePage() {
   }, [todayRides, todayFuel, expenses, userId]);
 
   return (
-    <div className="px-4 pt-5 pb-4 flex flex-col gap-5">
-
-      {/* Greeting */}
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 leading-tight">{getGreeting()}, {firstName}</h1>
-        <p className="text-sm text-slate-600 mt-0.5">{vehicleLabel}</p>
-        <p className="text-xs text-slate-500 mt-0.5">{formatDate(new Date().toISOString())}</p>
-      </div>
+    <div className="px-4 pt-4 pb-4 flex flex-col gap-5">
+      <ScreenHeader
+        title={`${getGreeting()}, ${firstName}`}
+        titleUrdu={vehicleLabel}
+        showNotifications
+      />
 
       {/* Daily target progress — only if target is set */}
       {dailyTarget > 0 && (
@@ -230,12 +229,29 @@ export default function DriverHomePage() {
           sub={fuelSource === "est." ? "estimated" : fuelSource === "actual" ? "actual" : undefined}
         />
         <MiniKPI
-          icon="📈"
-          value={formatCurrency(todayNetProfit)}
-          label="Net Profit"
-          colorClass={todayNetProfit >= 0 ? "text-accent-green" : "text-status-red"}
-          sub={fuelSource === "est." ? "fuel est." : undefined}
+          icon="🧾"
+          value={formatCurrency(todayExpCost)}
+          label="Other Exp."
+          colorClass="text-status-amber"
+          sub="approved"
         />
+      </div>
+
+      {/* Net Profit KPI (full width) */}
+      <div className="bg-brand-surface rounded-2xl p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">📈</span>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Net Profit Today</p>
+            <p className="text-[10px] text-slate-400" dir="rtl">آج کا منافع</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className={`text-xl font-bold tabular-nums ${todayNetProfit >= 0 ? "text-accent-green" : "text-status-red"}`}>
+            {formatCurrency(todayNetProfit)}
+          </p>
+          <p className="text-[10px] text-slate-400">{fuelSource === "est." ? "incl. fuel est." : "actual logs used"}</p>
+        </div>
       </div>
 
       {/* Quick actions */}
@@ -243,6 +259,37 @@ export default function DriverHomePage() {
         <Link href="/add-fuel"    className="flex-1 py-3 rounded-xl text-center text-sm font-medium border border-status-amber text-status-amber active:opacity-70 transition-opacity">Add Fuel ⛽</Link>
         <Link href="/add-expense" className="flex-1 py-3 rounded-xl text-center text-sm font-medium border border-slate-300 text-slate-700 active:opacity-70 transition-opacity">Expense 🧾</Link>
       </div>
+
+      {/* Recent Expenses (Driver) */}
+      {expenses.length > 0 && (
+        <div>
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-base font-bold text-slate-900">My Expenses</p>
+            <p className="text-xs text-slate-500" dir="rtl">میرے اخراجات</p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {expenses
+              .filter(e => e.loggedBy === userId)
+              .sort((a, b) => b.date.localeCompare(a.date))
+              .slice(0, 3)
+              .map((exp) => (
+                <div key={exp.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{EXPENSE_CATEGORIES.find(c => c.id === exp.category)?.emoji || "🧾"}</span>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{EXPENSE_CATEGORIES.find(c => c.id === exp.category)?.name || exp.category}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {new Date(exp.date).toLocaleDateString("en-PK", { day: "numeric", month: "short" })} · 
+                        <span className={exp.status === "pending" ? "text-slate-500" : exp.status === "approved" ? "text-accent-green" : "text-status-red"}> {exp.status}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-status-amber tabular-nums">− {formatCurrency(exp.amount)}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Today's Log */}
       <div>

@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import InstallBanner from "@/components/layout/InstallBanner";
 import OfflineSyncProvider from "@/components/layout/OfflineSyncProvider";
+import PushNotificationProvider from "@/components/layout/PushNotificationProvider";
 import StoreCleaner from "@/components/layout/StoreCleaner";
 import "./globals.css";
 
@@ -68,6 +69,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <StoreCleaner />
           <OfflineSyncProvider />
+          <PushNotificationProvider />
           {children}
           <InstallBanner />
         </ErrorBoundary>

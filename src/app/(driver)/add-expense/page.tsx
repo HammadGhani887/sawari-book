@@ -8,9 +8,7 @@ import { ScreenHeader, NumericKeypad, Input, Button } from "@/components/ui";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
-import { useNotificationStore } from "@/lib/store/notificationStore";
 import { useAuthStore } from "@/lib/store/authStore";
-import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { saveExpenseOffline } from "@/hooks/useOfflineQueue";
 import api from "@/lib/services/api";
 
@@ -18,12 +16,6 @@ export default function DriverAddExpensePage() {
   const router      = useRouter();
   const addExpense  = useExpenseStore((s) => s.addExpense);
   const driver      = useCurrentDriver();
-  const addNotif    = useNotificationStore((s) => s.addNotification);
-  const ownerId     = useVehicleStore((s) => {
-    const v = s.vehicles.find((v) => v.id === driver?.vehicleId);
-    return v?.ownerId ?? "";
-  });
-  const driverName  = useAuthStore((s) => s.user?.name ?? "Driver");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [category,       setCategory]       = useState<string | null>(null);
@@ -84,16 +76,7 @@ export default function DriverAddExpensePage() {
       // Update local store for instant UI (only once)
       addExpense(expenseData);
 
-      // Notify owner
-      if (ownerId) {
-        const catLabel = EXPENSE_CATEGORIES.find((c) => c.id === category)?.name ?? category;
-        addNotif({
-          userId: ownerId,
-          type:   "expense_pending",
-          title:  `Expense pending: ${catLabel} ₨${Number(amount).toLocaleString()}`,
-          body:   `${driverName} submitted — needs your approval`,
-        });
-      }
+      // Notify owner (Handled by backend)
       if (savedToDb) {
         toast.success("Expense submitted ✓ Waiting for approval");
       } else {

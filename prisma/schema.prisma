@@ -99,6 +99,7 @@ model User {
   driverSettlements Settlement[]       @relation("SettlementDriver")
   // Notifications
   notifications     Notification[]
+  pushSubscriptions PushSubscription[]
   // Invites sent as owner
   sentInvites       Invite[]       @relation("InviteOwner")
 
@@ -265,6 +266,20 @@ model Notification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model Invite {
