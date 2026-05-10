@@ -70,15 +70,17 @@ export default function OwnerDashboardPage() {
   // KPI totals
   const totalRides    = todayRides.length;
   const totalRevenue  = todayRides.reduce((s, r) => s + r.fareAmount, 0);
-  const totalExpenses = expenses
-    .filter((e) => e.status === "approved" && e.date.startsWith(TODAY))
-    .reduce((s, e) => s + e.amount, 0);
-
+  
   // Fuel cost: actual fuel logs today, fallback to estimated from rides
   const todayFuelLogs = fuelLogs.filter((f) => f.date.startsWith(TODAY));
   const actualFuelCost = todayFuelLogs.reduce((s, f) => s + f.amountPkr, 0);
   const estimatedFuelCost = todayRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
   const fuelCost = actualFuelCost > 0 ? actualFuelCost : estimatedFuelCost;
+  const fuelSource = actualFuelCost > 0 ? "actual" : estimatedFuelCost > 0 ? "est." : null;
+  
+  const totalExpenses = expenses
+    .filter((e) => e.status === "approved" && e.date.startsWith(TODAY))
+    .reduce((s, e) => s + e.amount, 0);
 
   const netProfit = totalRevenue - fuelCost - totalExpenses;
 
@@ -141,12 +143,38 @@ export default function OwnerDashboardPage() {
       </div>
 
       {/* ── KPI grid ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPICard label="Today's Rides" value={String(totalRides)}            icon="🚗" colorClass="text-slate-900" />
-        <KPICard label="Revenue"       value={formatCurrency(totalRevenue)}  icon="💰" colorClass="text-accent-green" />
-        <KPICard label="Fuel + Exp"    value={formatCurrency(fuelCost + totalExpenses)} icon="🧾" colorClass="text-status-amber" />
-        <KPICard label="Net Profit"    value={formatCurrency(netProfit)}     icon="📈" colorClass={netProfit >= 0 ? "text-accent-green" : "text-status-red"} />
+      <div className="grid grid-cols-2 gap-3">
+        <KPICard label="Rides" value={String(totalRides)} icon="🚗" colorClass="text-slate-900" />
+        <KPICard label="Revenue" value={formatCurrency(totalRevenue)} icon="💰" colorClass="text-accent-blue" />
+        <KPICard 
+          label="Fuel Cost" 
+          value={formatCurrency(fuelCost)} 
+          icon="⛽" 
+          colorClass="text-status-amber"
+          sub={fuelSource === "est." ? "estimated" : fuelSource === "actual" ? "actual" : undefined}
+        />
+        <KPICard 
+          label="Net Profit" 
+          value={formatCurrency(netProfit)} 
+          icon="📈" 
+          colorClass={netProfit >= 0 ? "text-accent-green" : "text-status-red"}
+          sub={fuelSource === "est." ? "fuel est." : undefined}
+        />
       </div>
+
+      {/* ── Expenses row (if any) ── */}
+      {totalExpenses > 0 && (
+        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🧾</span>
+              <p className="text-sm font-semibold text-slate-900">Other Expenses</p>
+            </div>
+            <p className="text-sm font-bold text-status-amber">{formatCurrency(totalExpenses)}</p>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">Approved expenses for today</p>
+        </div>
+      )}
 
       {/* ── Anomaly alerts ── */}
       {anomalies.length > 0 && (

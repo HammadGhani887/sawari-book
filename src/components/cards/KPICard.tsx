@@ -12,6 +12,7 @@ interface KPICardProps {
   icon: string;
   trend?: Trend;
   colorClass?: string;
+  sub?: string;
 }
 
 export default function KPICard({
@@ -21,6 +22,7 @@ export default function KPICard({
   icon,
   trend,
   colorClass = "text-accent-green",
+  sub,
 }: KPICardProps) {
   return (
     <Card className="flex items-center gap-3 !p-3">
@@ -57,6 +59,11 @@ export default function KPICard({
             dir="rtl"
           >
             {labelUrdu}
+          </p>
+        )}
+        {sub && (
+          <p className="text-[9px] text-slate-400 leading-tight truncate mt-0.5">
+            {sub}
           </p>
         )}
       </div>
