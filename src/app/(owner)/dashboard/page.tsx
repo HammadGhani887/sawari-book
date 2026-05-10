@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
@@ -16,6 +16,7 @@ import { useDriverStore } from "@/lib/store/driverStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { formatCurrency, getGreeting, formatDate } from "@/lib/utils/format";
 import { Calculator } from "lucide-react";
+import api from "@/lib/services/api";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -30,6 +31,21 @@ export default function OwnerDashboardPage() {
   const drivers     = useDriverStore((s) => s.drivers);
   const fuelLogs    = useFuelStore((s) => s.fuelLogs);
   const unreadCount = useNotificationStore((s) => s.unreadCount)();
+
+  // Refresh rides on mount to get latest data with fuel costs
+  useEffect(() => {
+    async function refreshRides() {
+      try {
+        const res = await api.get("/rides");
+        if (res.data) {
+          useRideStore.setState({ rides: res.data });
+        }
+      } catch {
+        // Ignore errors, use cached data
+      }
+    }
+    refreshRides();
+  }, []);
 
   // Weekly bar chart — Mon-Sun centred on today (2026-05-07 = Wednesday)
   const weeklyData = useMemo(() => {

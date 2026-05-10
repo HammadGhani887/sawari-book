@@ -156,17 +156,20 @@ model DriverAssignment {
 }
 
 model Ride {
-  id          String      @id @default(uuid())
-  vehicleId   String
-  driverId    String
-  platform    Platform
-  fareAmount  Decimal     @db.Decimal(10, 2)
-  paymentType PaymentType @default(CASH)
-  pickupArea  String?
-  dropoffArea String?
-  isDisputed  Boolean     @default(false)
-  rideTime    DateTime
-  loggedAt    DateTime    @default(now())
+  id                 String      @id @default(uuid())
+  vehicleId          String
+  driverId           String
+  platform           Platform
+  fareAmount         Decimal     @db.Decimal(10, 2)
+  paymentType        PaymentType @default(CASH)
+  pickupArea         String?
+  dropoffArea        String?
+  distanceKm         Decimal?    @db.Decimal(6, 2)
+  estimatedFuelCost  Decimal?    @db.Decimal(8, 2)
+  boostCost          Decimal?    @db.Decimal(8, 2)
+  isDisputed         Boolean     @default(false)
+  rideTime           DateTime
+  loggedAt           DateTime    @default(now())
 
   vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   driver  User    @relation("RideDriver", fields: [driverId], references: [id], onDelete: Restrict)
