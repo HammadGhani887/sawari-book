@@ -1,57 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
-import { users, assignments } from "@/app/api/_data/mockData";
-import { verifyAuth, unauthorized, badRequest } from "@/app/api/_lib/auth";
-import type { User, DriverAssignment } from "@/lib/types";
+import { prisma } from "@/lib/prisma";
+import { verifyAuth, unauthorized } from "@/app/api/_lib/auth";
 
 export async function GET(req: NextRequest) {
   const auth = verifyAuth(req);
   if (!auth) return unauthorized();
 
-  // TODO: Connect to Prisma + MySQL here.
-  const drivers = users.filter((u) => u.role === "driver");
-  const result = drivers.map((d) => ({
-    ...d,
-    assignment: assignments.find((a) => a.driverId === d.id) ?? null,
-  }));
+  if (auth.role === "owner") {
+    // Owner: get all active driver assignments for their vehicles
+    const assignments = await prisma.driverAssignment.findMany({
+      where:   { ownerId: auth.userId, isActive: true },
+      include: { driver: true },
+      orderBy: { createdAt: "desc" },
+    });
 
-  return NextResponse.json(result);
-}
+    const result = assignments.map((a) => ({
+      id:           a.id,          // assignment id used as driverStore id
+      userId:       a.driverId,
+      name:         a.driver.name,
+      phone:        a.driver.phone,
+      cnic:         a.driver.cnic ?? undefined,
+      photoUrl:     a.driver.photoUrl ?? undefined,
+      isActive:     a.isActive,
+      vehicleId:    a.vehicleId,
+      salaryType:   a.salaryType.toLowerCase() as "fixed" | "percentage" | "hybrid",
+      salaryAmount: Number(a.salaryAmount),
+      startDate:    a.startDate.toISOString().slice(0, 10),
+    }));
 
-export async function POST(req: NextRequest) {
-  const auth = verifyAuth(req);
-  if (!auth) return unauthorized();
-
-  const body = await req.json().catch(() => null);
-  if (!body?.phone || !body?.name) {
-    return badRequest("phone and name are required");
+    return NextResponse.json(result);
   }
 
-  // TODO: Connect to Prisma + MySQL here.
-  const driver: User = {
-    id:        `u${Date.now()}`,
-    phone:     body.phone,
-    name:      body.name,
-    role:      "driver",
-    language:  body.language ?? "ur",
-    cnic:      body.cnic,
-    createdAt: new Date().toISOString(),
-  };
-  users.push(driver);
+  if (auth.role === "driver") {
+    // Driver: get their own active assignment
+    const assignment = await prisma.driverAssignment.findFirst({
+      where:   { driverId: auth.userId, isActive: true },
+      include: { driver: true },
+      orderBy: { createdAt: "desc" },
+    });
 
-  let assignment: DriverAssignment | null = null;
-  if (body.vehicleId) {
-    assignment = {
-      id:           `a${Date.now()}`,
-      driverId:     driver.id,
-      vehicleId:    body.vehicleId,
-      ownerId:      "1",
-      salaryType:   body.salaryType  ?? "fixed",
-      salaryAmount: body.salaryAmount ?? 0,
-      startDate:    new Date().toISOString().slice(0, 10),
-      isActive:     true,
-    };
-    assignments.push(assignment);
+    if (!assignment) {
+      return NextResponse.json([]);
+    }
+
+    const result = [{
+      id:           assignment.id,
+      userId:       assignment.driverId,
+      name:         assignment.driver.name,
+      phone:        assignment.driver.phone,
+      cnic:         assignment.driver.cnic ?? undefined,
+      photoUrl:     assignment.driver.photoUrl ?? undefined,
+      isActive:     assignment.isActive,
+      vehicleId:    assignment.vehicleId,
+      salaryType:   assignment.salaryType.toLowerCase() as "fixed" | "percentage" | "hybrid",
+      salaryAmount: Number(assignment.salaryAmount),
+      startDate:    assignment.startDate.toISOString().slice(0, 10),
+    }];
+
+    return NextResponse.json(result);
   }
 
-  return NextResponse.json({ ...driver, assignment }, { status: 201 });
+  return NextResponse.json([]);
 }

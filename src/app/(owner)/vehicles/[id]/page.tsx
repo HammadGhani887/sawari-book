@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Phone, Link2, CheckCheck, Pencil, Check, X } from "lucide-react";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { Phone, Link2, CheckCheck, Pencil, Check, X, RefreshCw } from "lucide-react";
 import { ScreenHeader, Card, Badge } from "@/components/ui";
 import { RideEntryCard, ExpenseCard, SettlementRow } from "@/components/cards";
 import PlatformBadge from "@/components/ui/PlatformBadge";
@@ -58,6 +58,28 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [customStart, setCustomStart] = useState(TODAY);
   const [customEnd,   setCustomEnd]   = useState(TODAY);
+
+  // Refresh drivers from DB (useful after invite is accepted)
+  const refreshDrivers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/drivers", {
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          useDriverStore.setState({ drivers: data });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [token]);
+
+  // Auto-refresh drivers on mount so newly joined drivers show up
+  useEffect(() => {
+    refreshDrivers();
+  }, [refreshDrivers]);
 
   // Fuel settings edit state
   const [editingFuel,    setEditingFuel]    = useState(false);
@@ -214,6 +236,12 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
           ) : (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-slate-500">No driver linked to this vehicle.</p>
+              <button
+                onClick={refreshDrivers}
+                className="flex items-center gap-1.5 text-xs text-slate-400 active:opacity-70 self-start"
+              >
+                <RefreshCw size={12} /> Refresh
+              </button>
               {inviteLink ? (
                 <div className="bg-brand-elevated rounded-xl p-3 flex flex-col gap-2">
                   <p className="text-xs text-slate-500">Share this link with your driver:</p>

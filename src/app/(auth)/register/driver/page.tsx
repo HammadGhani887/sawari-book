@@ -8,7 +8,6 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui";
 import { useAuthStore } from "@/lib/store/authStore";
-import { useDriverStore } from "@/lib/store/driverStore";
 
 function fmtCnic(raw: string) {
   const d = raw.replace(/\D/g, "").slice(0, 13);
@@ -46,7 +45,6 @@ function RegisterDriverForm() {
   const token     = params.get("token");
 
   const register  = useAuthStore((s) => s.register);
-  const addDriver = useDriverStore((s) => s.addDriver);
 
   // Fetch invite from API if token present
   const [inviteData, setInviteData] = useState<{
@@ -99,25 +97,49 @@ function RegisterDriverForm() {
     if (!result.ok) { toast.error(result.error!); setSaving(false); return; }
 
     const userId = useAuthStore.getState().user!.id;
-    addDriver({
-      userId,
-      name:         name.trim(),
-      phone:        phone.trim(),
-      cnic:         cnic || undefined,
-      isActive:     true,
-      vehicleId:    inviteData?.vehicleId ?? null,
-      salaryType:   "fixed",
-      salaryAmount: 0,
-      startDate:    new Date().toISOString().slice(0, 10),
-    });
+    const authToken = useAuthStore.getState().token!;
 
-    // Mark invite as used in DB
+    // Mark invite as used in DB (this will also create DriverAssignment)
     if (token && inviteData) {
-      await fetch(`/api/invites/${token}`, {
+      const inviteRes = await fetch(`/api/invites/${token}`, {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ usedBy: userId }),
-      }).catch(() => {});
+      }).catch(() => null);
+
+      if (!inviteRes?.ok) {
+        toast.error("Failed to link vehicle. Contact owner.");
+      } else {
+        // Sync driver assignment into local store so home page shows vehicle immediately
+        try {
+          const driversRes = await fetch("/api/drivers", {
+            headers: { "Authorization": `Bearer ${authToken}` },
+          });
+          if (driversRes.ok) {
+            const driversData = await driversRes.json();
+            if (Array.isArray(driversData) && driversData.length > 0) {
+              const { useDriverStore } = await import("@/lib/store/driverStore");
+              const { useVehicleStore } = await import("@/lib/store/vehicleStore");
+              useDriverStore.setState({ drivers: driversData });
+              // Fetch assigned vehicle
+              const vehicleId = driversData[0]?.vehicleId;
+              if (vehicleId) {
+                const vehicleRes = await fetch(`/api/vehicles/${vehicleId}`, {
+                  headers: { "Authorization": `Bearer ${authToken}` },
+                });
+                if (vehicleRes.ok) {
+                  const vehicleData = await vehicleRes.json();
+                  useVehicleStore.setState((s) => ({
+                    vehicles: [...s.vehicles.filter((v) => v.id !== vehicleId), vehicleData],
+                  }));
+                }
+              }
+            }
+          }
+        } catch {
+          // Sync failed, useDataSync will retry on next load
+        }
+      }
     }
 
     toast.success("Account created!");

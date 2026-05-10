@@ -33,7 +33,7 @@ export async function GET(
   });
 }
 
-// PATCH /api/invites/[token] — mark invite as used (called after driver registers)
+// PATCH /api/invites/[token] — mark invite as used + create DriverAssignment
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { token: string } }
@@ -51,10 +51,40 @@ export async function PATCH(
     return NextResponse.json({ error: "Invite already used" }, { status: 409 });
   }
 
-  await prisma.invite.update({
-    where: { token: params.token },
-    data:  { usedBy: body.usedBy },
+  // Run both operations in a transaction
+  const assignment = await prisma.$transaction(async (tx) => {
+    // Mark invite as used
+    await tx.invite.update({
+      where: { token: params.token },
+      data:  { usedBy: body.usedBy },
+    });
+
+    // Deactivate any existing active assignment for this driver
+    await tx.driverAssignment.updateMany({
+      where: { driverId: body.usedBy, isActive: true },
+      data:  { isActive: false, endDate: new Date() },
+    });
+
+    // Create new DriverAssignment
+    const newAssignment = await tx.driverAssignment.create({
+      data: {
+        driverId:     body.usedBy,
+        vehicleId:    invite.vehicleId,
+        ownerId:      invite.ownerId,
+        salaryType:   "FIXED",
+        salaryAmount: 0,
+        startDate:    new Date(),
+        isActive:     true,
+      },
+    });
+
+    return newAssignment;
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok:           true,
+    assignmentId: assignment.id,
+    vehicleId:    assignment.vehicleId,
+    ownerId:      assignment.ownerId,
+  });
 }
