@@ -52,7 +52,8 @@ export async function PATCH(
   }
 
   // Run both operations in a transaction
-  const assignment = await prisma.$transaction(async (tx) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assignment = await prisma.$transaction(async (tx: any) => {
     // Mark invite as used
     await tx.invite.update({
       where: { token: params.token },

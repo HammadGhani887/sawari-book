@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    const result = assignments.map((a) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = assignments.map((a: any) => ({
       id:           a.id,          // assignment id used as driverStore id
       userId:       a.driverId,
       name:         a.driver.name,
@@ -43,18 +44,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json([]);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const a: any = assignment;
     const result = [{
-      id:           assignment.id,
-      userId:       assignment.driverId,
-      name:         assignment.driver.name,
-      phone:        assignment.driver.phone,
-      cnic:         assignment.driver.cnic ?? undefined,
-      photoUrl:     assignment.driver.photoUrl ?? undefined,
-      isActive:     assignment.isActive,
-      vehicleId:    assignment.vehicleId,
-      salaryType:   assignment.salaryType.toLowerCase() as "fixed" | "percentage" | "hybrid",
-      salaryAmount: Number(assignment.salaryAmount),
-      startDate:    assignment.startDate.toISOString().slice(0, 10),
+      id:           a.id,
+      userId:       a.driverId,
+      name:         a.driver.name,
+      phone:        a.driver.phone,
+      cnic:         a.driver.cnic ?? undefined,
+      photoUrl:     a.driver.photoUrl ?? undefined,
+      isActive:     a.isActive,
+      vehicleId:    a.vehicleId,
+      salaryType:   a.salaryType.toLowerCase() as "fixed" | "percentage" | "hybrid",
+      salaryAmount: Number(a.salaryAmount),
+      startDate:    a.startDate.toISOString().slice(0, 10),
     }];
 
     return NextResponse.json(result);
