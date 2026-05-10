@@ -8,6 +8,7 @@ interface VehicleCardProps {
   vehicle: Vehicle;
   todayRides?: number;
   todayRevenue?: number;
+  todayProfit?: number;
   driverName?: string;
   onClick?: () => void;
 }
@@ -16,6 +17,7 @@ export default function VehicleCard({
   vehicle,
   todayRides = 0,
   todayRevenue = 0,
+  todayProfit,
   driverName,
   onClick,
 }: VehicleCardProps) {
@@ -43,10 +45,17 @@ export default function VehicleCard({
 
         {/* Stats */}
         {(todayRides > 0 || todayRevenue > 0) && (
-          <p className="text-xs font-semibold text-accent-green mt-1">
-            {todayRides} ride{todayRides !== 1 ? "s" : ""} ·{" "}
-            {formatCurrency(todayRevenue)}
-          </p>
+          <div className="flex flex-col mt-1">
+            <p className="text-xs font-semibold text-accent-blue">
+              {todayRides} ride{todayRides !== 1 ? "s" : ""} ·{" "}
+              {formatCurrency(todayRevenue)}
+            </p>
+            {todayProfit !== undefined && (
+              <p className={`text-[10px] font-bold ${todayProfit >= 0 ? "text-accent-green" : "text-status-red"}`}>
+                Profit: {formatCurrency(todayProfit)} net
+              </p>
+            )}
+          </div>
         )}
 
         {/* Footer */}

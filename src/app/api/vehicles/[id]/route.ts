@@ -52,7 +52,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const vehicle = await prisma.vehicle.findUnique({ where: { id: params.id } });
   if (!vehicle) return notFound("Vehicle");
-  if (vehicle.ownerId !== auth.userId) return notFound("Vehicle");
+
+  // Authorization: Owner or Assigned Driver
+  if (auth.role === "driver") {
+    const assignment = await prisma.driverAssignment.findFirst({
+      where: { driverId: auth.userId, vehicleId: params.id, isActive: true },
+    });
+    if (!assignment) return notFound("Vehicle");
+  } else if (auth.role === "owner" && vehicle.ownerId !== auth.userId) {
+    return notFound("Vehicle");
+  }
 
   const body = await req.json().catch(() => null);
   if (!body) return badRequest("Request body is required");

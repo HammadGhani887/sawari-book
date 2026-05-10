@@ -65,40 +65,75 @@ export default function OwnerDashboardPage() {
     () => rides.filter((r) => r.rideTime.startsWith(TODAY)),
     [rides]
   );
+  
+  const todayFuelLogs = useMemo(
+    () => fuelLogs.filter((f) => f.date.startsWith(TODAY)),
+    [fuelLogs]
+  );
 
   const vehicleStats = useMemo(() => {
     return Object.fromEntries(
       vehicles.map((v) => {
         const vRides = todayRides.filter((r) => r.vehicleId === v.id);
+        const vFuelLogs = todayFuelLogs.filter((f) => f.vehicleId === v.id);
+        const vExpenses = expenses.filter((e) => e.vehicleId === v.id && e.status === "approved" && e.date.startsWith(TODAY));
+        
+        const rev    = vRides.reduce((s, r) => s + r.fareAmount, 0);
+        const actual = vFuelLogs.reduce((s, f) => s + f.amountPkr, 0);
+        const est    = vRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
+        const boost  = vRides.reduce((s, r) => s + (r.boostCost ?? 0), 0);
+        const exp    = vExpenses.reduce((s, e) => s + e.amount, 0);
+        
+        const fuel = actual > 0 ? actual : est;
+        const profit = rev - fuel - exp - boost;
+
         const driver = drivers.find((d) => d.vehicleId === v.id);
         return [
           v.id,
           {
             rides:   vRides.length,
-            revenue: vRides.reduce((s, r) => s + r.fareAmount, 0),
+            revenue: rev,
+            profit:  profit,
             driver:  driver?.name ?? "—",
           },
         ];
       })
     );
-  }, [vehicles, todayRides, drivers]);
+  }, [vehicles, todayRides, todayFuelLogs, expenses, drivers]);
 
   // KPI totals
   const totalRides    = todayRides.length;
   const totalRevenue  = todayRides.reduce((s, r) => s + r.fareAmount, 0);
   
-  // Fuel cost: actual fuel logs today, fallback to estimated from rides
-  const todayFuelLogs = fuelLogs.filter((f) => f.date.startsWith(TODAY));
-  const actualFuelCost = todayFuelLogs.reduce((s, f) => s + f.amountPkr, 0);
-  const estimatedFuelCost = todayRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
-  const fuelCost = actualFuelCost > 0 ? actualFuelCost : estimatedFuelCost;
-  const fuelSource = actualFuelCost > 0 ? "actual" : estimatedFuelCost > 0 ? "est." : null;
-  
+  // Fuel & Profit breakdown
+  const { fleetFuelCost, fleetBoostCost, fleetFuelSource } = useMemo(() => {
+    let totalFuel = 0;
+    let totalBoost = 0;
+    let hasActual = false;
+    let hasEst    = false;
+
+    vehicles.forEach((v) => {
+      const vRides = todayRides.filter((r) => r.vehicleId === v.id);
+      const vFuelLogs = todayFuelLogs.filter((f) => f.vehicleId === v.id);
+      const vActual = vFuelLogs.reduce((s, f) => s + f.amountPkr, 0);
+      const vEst    = vRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
+      const vBoost  = vRides.reduce((s, r) => s + (r.boostCost ?? 0), 0);
+
+      totalFuel += vActual > 0 ? vActual : vEst;
+      totalBoost += vBoost;
+      if (vActual > 0) hasActual = true;
+      else if (vEst > 0) hasEst = true;
+    });
+
+    const source = hasActual && hasEst ? "mixed" : hasActual ? "actual" : hasEst ? "est." : null;
+    return { fleetFuelCost: totalFuel, fleetBoostCost: totalBoost, fleetFuelSource: source };
+  }, [vehicles, todayRides, todayFuelLogs]);
+
   const totalExpenses = expenses
     .filter((e) => e.status === "approved" && e.date.startsWith(TODAY))
     .reduce((s, e) => s + e.amount, 0);
 
-  const netProfit = totalRevenue - fuelCost - totalExpenses;
+  const netProfit = totalRevenue - fleetFuelCost - totalExpenses - fleetBoostCost;
 
   // Revenue anomaly detection — compare today vs last 7 days average per vehicle
   const anomalies = useMemo(() => {
@@ -164,17 +199,17 @@ export default function OwnerDashboardPage() {
         <KPICard label="Revenue" value={formatCurrency(totalRevenue)} icon="💰" colorClass="text-accent-blue" />
         <KPICard 
           label="Fuel Cost" 
-          value={formatCurrency(fuelCost)} 
+          value={formatCurrency(fleetFuelCost)} 
           icon="⛽" 
           colorClass="text-status-amber"
-          sub={fuelSource === "est." ? "estimated" : fuelSource === "actual" ? "actual" : undefined}
+          sub={fleetFuelSource === "est." ? "estimated" : fleetFuelSource === "actual" ? "actual" : fleetFuelSource === "mixed" ? "actual + est." : undefined}
         />
         <KPICard 
           label="Net Profit" 
           value={formatCurrency(netProfit)} 
           icon="📈" 
           colorClass={netProfit >= 0 ? "text-accent-green" : "text-status-red"}
-          sub={fuelSource === "est." ? "fuel est." : undefined}
+          sub={fleetBoostCost > 0 ? `incl. Rs${fleetBoostCost} boost` : undefined}
         />
       </div>
 
@@ -208,6 +243,43 @@ export default function OwnerDashboardPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Today's Fleet Summary ── */}
+      {totalRides > 0 && (
+        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+          <div className="flex items-baseline justify-between mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Today&apos;s Fleet Summary</p>
+            <p className="text-[10px] text-slate-400" dir="rtl">آج کا خلاصہ</p>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-600">Total Revenue</span>
+            <span className="font-semibold text-slate-900">{formatCurrency(totalRevenue)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm mt-1">
+            <span className="text-slate-600">Fuel {fleetFuelSource === "est." ? "(est.)" : fleetFuelSource === "mixed" ? "(mixed)" : ""}</span>
+            <span className="font-semibold text-status-amber">− {formatCurrency(fleetFuelCost)}</span>
+          </div>
+          {totalExpenses > 0 && (
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span className="text-slate-600">Approved Expenses</span>
+              <span className="font-semibold text-status-amber">− {formatCurrency(totalExpenses)}</span>
+            </div>
+          )}
+          {fleetBoostCost > 0 && (
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span className="text-slate-600">Boost / Pop-up 🚀</span>
+              <span className="font-semibold text-status-red">− {formatCurrency(fleetBoostCost)}</span>
+            </div>
+          )}
+          <div className="h-px bg-slate-100 my-2" />
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-slate-900">Net Profit</span>
+            <span className={`text-base font-bold ${netProfit >= 0 ? "text-accent-green" : "text-status-red"}`}>
+              {formatCurrency(netProfit)}
+            </span>
+          </div>
         </div>
       )}
 
@@ -266,13 +338,14 @@ export default function OwnerDashboardPage() {
             </div>
           ) : (
             vehicles.map((vehicle) => {
-              const stats = vehicleStats[vehicle.id] ?? { rides: 0, revenue: 0, driver: "—" };
+              const stats = vehicleStats[vehicle.id] ?? { rides: 0, revenue: 0, profit: 0, driver: "—" };
               return (
                 <div key={vehicle.id} className="flex flex-col gap-1.5">
                   <VehicleCard
                     vehicle={vehicle}
                     todayRides={stats.rides}
                     todayRevenue={stats.revenue}
+                    todayProfit={stats.profit}
                     driverName={stats.driver}
                     onClick={() => router.push(`/vehicles/${vehicle.id}`)}
                   />
