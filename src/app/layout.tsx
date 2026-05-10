@@ -21,8 +21,8 @@ export const metadata: Metadata = {
   description: "Revenue tracking app for Pakistani ride-hailing car owners. Log rides, track expenses, settle with drivers.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.svg",
-    apple: "/icons/icon-192x192.png",
+    icon: "/sawari-app.png",
+    apple: "/sawari-app.png",
   },
   appleWebApp: {
     capable: true,
