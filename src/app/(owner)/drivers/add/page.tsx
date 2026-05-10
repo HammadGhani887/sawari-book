@@ -3,10 +3,11 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Share2 } from "lucide-react";
 import { ScreenHeader, Input, Button } from "@/components/ui";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { useDriverStore } from "@/lib/store/driverStore";
+import { useAuthStore } from "@/lib/store/authStore";
 import type { SalaryType } from "@/lib/types";
 
 const SALARY_OPTIONS: { id: SalaryType; label: string }[] = [
@@ -20,6 +21,7 @@ export default function AddDriverPage() {
   const photoRef   = useRef<HTMLInputElement>(null);
   const vehicles   = useVehicleStore((s) => s.vehicles);
   const addDriver  = useDriverStore((s) => s.addDriver);
+  const token      = useAuthStore((s) => s.token);
 
   const [photoPreview,  setPhotoPreview]  = useState<string | null>(null);
   const [name,          setName]          = useState("");
@@ -32,13 +34,54 @@ export default function AddDriverPage() {
   const [hybridBase,    setHybridBase]    = useState("");
   const [hybridBonus,   setHybridBonus]   = useState("");
   const [saving,        setSaving]        = useState(false);
+  const [inviting,      setInviting]      = useState(false);
 
   const canSubmit = name.trim().length > 0 && phone.trim().length > 0 && salaryType !== null;
+  const canInvite = vehicleId.length > 0;
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoPreview(URL.createObjectURL(file));
+  }
+
+  async function handleSendInvite() {
+    if (!canInvite) {
+      toast.error("Please select a vehicle first");
+      return;
+    }
+    setInviting(true);
+    try {
+      const res = await fetch("/api/invites", {
+        method:  "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ vehicleId }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Could not create invite");
+        return;
+      }
+      const inviteUrl = `${window.location.origin}/invite/${json.token}`;
+      const vehicle   = vehicles.find((v) => v.id === vehicleId);
+      const msg       = `Sawari Book invite!\nJoin as my driver for ${vehicle?.makeModel ?? "my vehicle"}.\n${inviteUrl}`;
+
+      // Try Web Share API first (mobile), fallback to WhatsApp link
+      if (navigator.share) {
+        await navigator.share({ title: "Sawari Book Driver Invite", text: msg, url: inviteUrl });
+      } else {
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+      }
+      toast.success("Invite link created ✓");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to create invite");
+    } finally {
+      setInviting(false);
+    }
   }
 
   async function handleSave() {
@@ -167,12 +210,18 @@ export default function AddDriverPage() {
           </div>
         </div>
 
+        {/* Send Invite */}
         <button
-          onClick={() => toast.success("WhatsApp invite sent ✓")}
-          className="w-full py-3 rounded-xl border-2 border-accent-green text-accent-green text-sm font-semibold flex items-center justify-center gap-2 active:opacity-70 transition-opacity"
+          onClick={handleSendInvite}
+          disabled={inviting}
+          className="w-full py-3 rounded-xl border-2 border-accent-green text-accent-green text-sm font-semibold flex items-center justify-center gap-2 active:opacity-70 transition-opacity disabled:opacity-50"
         >
-          Send WhatsApp Invite 📱
+          <Share2 size={16} />
+          {inviting ? "Creating invite..." : "Send Invite Link 📱"}
         </button>
+        {!canInvite && (
+          <p className="text-[11px] text-slate-400 -mt-3 text-center">Select a vehicle above to enable invite</p>
+        )}
 
         <div>
           <Button variant="primary" fullWidth disabled={!canSubmit} loading={saving} onClick={handleSave}>

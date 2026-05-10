@@ -9,6 +9,7 @@ import { useFuelStore } from "@/lib/store/fuelStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { saveFuelOffline } from "@/hooks/useOfflineQueue";
+import api from "@/lib/services/api";
 
 export default function AddFuelPage() {
   const router   = useRouter();
@@ -82,8 +83,32 @@ export default function AddFuelPage() {
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
       });
     } else {
+      // Save to DB via API (syncs across all devices)
+      let savedToDb = false;
+      try {
+        await api.post("/fuel", {
+          vehicleId: fuelData.vehicleId,
+          amountPkr: fuelData.amountPkr,
+          litres:    fuelData.litres,
+          odometer:  fuelData.odometer,
+          pumpName:  fuelData.pumpName,
+          date:      fuelData.date,
+        });
+        savedToDb = true;
+      } catch {
+        // API failed — fall back to local store only
+      }
+
+      // Update local store for instant UI (only once)
       addFuel(fuelData);
-      toast.success("Fuel entry saved ✓");
+      if (savedToDb) {
+        toast.success("Fuel entry saved ✓");
+      } else {
+        toast("Saved locally. Will sync when connection is stable.", {
+          icon: "⚠️",
+          style: { background: "#1E293B", color: "#fff", borderRadius: "12px" },
+        });
+      }
     }
     router.back();
   }

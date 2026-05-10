@@ -16,6 +16,7 @@ import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useNotificationStore } from "@/lib/store/notificationStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import { saveRideOffline } from "@/hooks/useOfflineQueue";
+import api from "@/lib/services/api";
 import type { PlatformId, PaymentType } from "@/lib/types";
 
 const PLATFORM_OPTIONS = [
@@ -123,7 +124,31 @@ export default function AddRidePage() {
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
       });
     } else {
+      // Save to DB via API (syncs across all devices)
+      let savedToDb = false;
+      try {
+        await api.post("/rides", {
+          vehicleId:   rideData.vehicleId,
+          platform:    rideData.platform,
+          fareAmount:  rideData.fareAmount,
+          paymentType: rideData.paymentType,
+          pickupArea:  rideData.pickupArea,
+          dropoffArea: rideData.dropoffArea,
+          rideTime:    rideData.rideTime,
+        });
+        savedToDb = true;
+      } catch {
+        // API failed — fall back to local store only
+      }
+
+      // Update local store for instant UI (only once)
       addRide(rideData);
+      if (!savedToDb) {
+        toast("Saved locally. Will sync when connection is stable.", {
+          icon: "⚠️",
+          style: { background: "#1E293B", color: "#fff", borderRadius: "12px" },
+        });
+      }
 
       // Notify owner about new ride
       if (ownerId) {

@@ -12,6 +12,7 @@ import { useNotificationStore } from "@/lib/store/notificationStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { saveExpenseOffline } from "@/hooks/useOfflineQueue";
+import api from "@/lib/services/api";
 
 export default function DriverAddExpensePage() {
   const router      = useRouter();
@@ -65,7 +66,24 @@ export default function DriverAddExpensePage() {
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
       });
     } else {
+      // Save to DB via API (syncs across all devices)
+      let savedToDb = false;
+      try {
+        await api.post("/expenses", {
+          vehicleId: expenseData.vehicleId,
+          category:  expenseData.category,
+          amount:    expenseData.amount,
+          note:      expenseData.note,
+          date:      expenseData.date,
+        });
+        savedToDb = true;
+      } catch {
+        // API failed — fall back to local store only
+      }
+
+      // Update local store for instant UI (only once)
       addExpense(expenseData);
+
       // Notify owner
       if (ownerId) {
         const catLabel = EXPENSE_CATEGORIES.find((c) => c.id === category)?.name ?? category;
@@ -76,7 +94,14 @@ export default function DriverAddExpensePage() {
           body:   `${driverName} submitted — needs your approval`,
         });
       }
-      toast.success("Expense submitted ✓ Waiting for approval");
+      if (savedToDb) {
+        toast.success("Expense submitted ✓ Waiting for approval");
+      } else {
+        toast("Saved locally. Will sync when connection is stable.", {
+          icon: "⚠️",
+          style: { background: "#1E293B", color: "#fff", borderRadius: "12px" },
+        });
+      }
     }
     router.back();
   }

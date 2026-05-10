@@ -1,26 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rides } from "@/app/api/_data/mockData";
+import { prisma } from "@/lib/prisma";
 import { verifyAuth, unauthorized, badRequest } from "@/app/api/_lib/auth";
-import type { Ride } from "@/lib/types";
 
 export async function GET(req: NextRequest) {
   const auth = verifyAuth(req);
   if (!auth) return unauthorized();
 
   const { searchParams } = new URL(req.url);
-  const vehicleId  = searchParams.get("vehicleId");
-  const startDate  = searchParams.get("startDate");
-  const endDate    = searchParams.get("endDate");
-  const platform   = searchParams.get("platform");
+  const vehicleId = searchParams.get("vehicleId");
+  const driverId  = searchParams.get("driverId");
+  const startDate = searchParams.get("startDate");
+  const endDate   = searchParams.get("endDate");
+  const platform  = searchParams.get("platform");
 
-  // TODO: Connect to Prisma + MySQL here. Build a WHERE clause from filters.
-  let filtered = [...rides];
-  if (vehicleId)  filtered = filtered.filter((r) => r.vehicleId === vehicleId);
-  if (platform)   filtered = filtered.filter((r) => r.platform  === platform);
-  if (startDate)  filtered = filtered.filter((r) => r.rideTime >= startDate);
-  if (endDate)    filtered = filtered.filter((r) => r.rideTime <= endDate + "T23:59:59.999Z");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {};
 
-  return NextResponse.json(filtered.sort((a, b) => b.rideTime.localeCompare(a.rideTime)));
+  // Owner sees rides for their vehicles; driver sees only their own rides
+  if (auth.role === "driver") {
+    where.driverId = auth.userId;
+  } else {
+    if (vehicleId) where.vehicleId = vehicleId;
+    if (driverId)  where.driverId  = driverId;
+  }
+
+  if (platform)  where.platform = platform.toUpperCase();
+  if (startDate || endDate) {
+    where.rideTime = {};
+    if (startDate) where.rideTime.gte = new Date(startDate);
+    if (endDate)   where.rideTime.lte = new Date(endDate + "T23:59:59.999Z");
+  }
+
+  const rides = await prisma.ride.findMany({
+    where,
+    orderBy: { rideTime: "desc" },
+  });
+
+  // Normalize to frontend shape
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = rides.map((r: any) => ({
+    id:          r.id,
+    vehicleId:   r.vehicleId,
+    driverId:    r.driverId,
+    platform:    r.platform.toLowerCase(),
+    fareAmount:  Number(r.fareAmount),
+    paymentType: r.paymentType.toLowerCase(),
+    pickupArea:  r.pickupArea,
+    dropoffArea: r.dropoffArea,
+    isDisputed:  r.isDisputed,
+    rideTime:    r.rideTime.toISOString(),
+    loggedAt:    r.loggedAt.toISOString(),
+  }));
+
+  return NextResponse.json(result);
 }
 
 export async function POST(req: NextRequest) {
@@ -32,21 +64,31 @@ export async function POST(req: NextRequest) {
     return badRequest("vehicleId, platform, and fareAmount are required");
   }
 
-  // TODO: Connect to Prisma + MySQL here. prisma.ride.create({ data: body })
-  const ride: Ride = {
-    id:          `r${Date.now()}`,
-    vehicleId:   body.vehicleId,
-    driverId:    body.driverId ?? auth.userId,
-    platform:    body.platform,
-    fareAmount:  Number(body.fareAmount),
-    paymentType: body.paymentType ?? "cash",
-    pickupArea:  body.pickupArea,
-    dropoffArea: body.dropoffArea,
-    isDisputed:  false,
-    rideTime:    body.rideTime ?? new Date().toISOString(),
-    loggedAt:    new Date().toISOString(),
-  };
-  rides.unshift(ride);
+  const ride = await prisma.ride.create({
+    data: {
+      vehicleId:   body.vehicleId,
+      driverId:    auth.userId,
+      platform:    body.platform.toUpperCase(),
+      fareAmount:  Number(body.fareAmount),
+      paymentType: (body.paymentType ?? "cash").toUpperCase(),
+      pickupArea:  body.pickupArea  ?? null,
+      dropoffArea: body.dropoffArea ?? null,
+      isDisputed:  false,
+      rideTime:    body.rideTime ? new Date(body.rideTime) : new Date(),
+    },
+  });
 
-  return NextResponse.json(ride, { status: 201 });
+  return NextResponse.json({
+    id:          ride.id,
+    vehicleId:   ride.vehicleId,
+    driverId:    ride.driverId,
+    platform:    ride.platform.toLowerCase(),
+    fareAmount:  Number(ride.fareAmount),
+    paymentType: ride.paymentType.toLowerCase(),
+    pickupArea:  ride.pickupArea,
+    dropoffArea: ride.dropoffArea,
+    isDisputed:  ride.isDisputed,
+    rideTime:    ride.rideTime.toISOString(),
+    loggedAt:    ride.loggedAt.toISOString(),
+  }, { status: 201 });
 }

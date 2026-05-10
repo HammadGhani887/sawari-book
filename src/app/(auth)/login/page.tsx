@@ -29,7 +29,8 @@ export default function LoginPage() {
       toast.error(result.error ?? "Login failed");
       return;
     }
-    const role = useAuthStore.getState().user?.role;
+    // Read role directly from result — store may not have flushed yet
+    const role = result.role ?? useAuthStore.getState().user?.role;
     router.replace(role === "owner" ? "/dashboard" : "/home");
   }
 

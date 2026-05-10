@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, Suspense } from "react";
+import { useRef, useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Upload, Camera } from "lucide-react";
 import Image from "next/image";
@@ -9,7 +9,6 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useDriverStore } from "@/lib/store/driverStore";
-import { useInviteStore } from "@/lib/store/inviteStore";
 
 function fmtCnic(raw: string) {
   const d = raw.replace(/\D/g, "").slice(0, 13);
@@ -48,9 +47,19 @@ function RegisterDriverForm() {
 
   const register  = useAuthStore((s) => s.register);
   const addDriver = useDriverStore((s) => s.addDriver);
-  const getInvite = useInviteStore((s) => s.getInvite);
-  const markUsed  = useInviteStore((s) => s.markUsed);
-  const invite    = token ? getInvite(token) : null;
+
+  // Fetch invite from API if token present
+  const [inviteData, setInviteData] = useState<{
+    ownerName: string; vehicleName: string; vehicleId: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`/api/invites/${token}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setInviteData(data); })
+      .catch(() => {});
+  }, [token]);
 
   const profileRef = useRef<HTMLInputElement>(null);
   const licenseRef = useRef<HTMLInputElement>(null);
@@ -96,13 +105,21 @@ function RegisterDriverForm() {
       phone:        phone.trim(),
       cnic:         cnic || undefined,
       isActive:     true,
-      vehicleId:    invite?.vehicleId ?? null,
+      vehicleId:    inviteData?.vehicleId ?? null,
       salaryType:   "fixed",
       salaryAmount: 0,
       startDate:    new Date().toISOString().slice(0, 10),
     });
 
-    if (token && invite) markUsed(token, userId);
+    // Mark invite as used in DB
+    if (token && inviteData) {
+      await fetch(`/api/invites/${token}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ usedBy: userId }),
+      }).catch(() => {});
+    }
+
     toast.success("Account created!");
     router.replace("/home");
   }
@@ -123,12 +140,12 @@ function RegisterDriverForm() {
       </div>
 
       {/* Invite banner */}
-      {invite && (
+      {inviteData && (
         <div className="bg-accent-blueDim border border-accent-blue/40 rounded-xl p-3">
           <p className="text-xs text-slate-600">
-            Invited by <span className="font-semibold text-slate-900">{invite.ownerName}</span>
+            Invited by <span className="font-semibold text-slate-900">{inviteData.ownerName}</span>
           </p>
-          <p className="text-sm font-bold text-slate-900 mt-0.5">{invite.vehicleName}</p>
+          <p className="text-sm font-bold text-slate-900 mt-0.5">{inviteData.vehicleName}</p>
           <p className="text-[11px] text-slate-500 mt-0.5">You&apos;ll be linked to this vehicle after registration.</p>
         </div>
       )}

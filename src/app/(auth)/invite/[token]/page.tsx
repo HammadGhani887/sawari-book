@@ -1,32 +1,77 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Car, User } from "lucide-react";
-import { useInviteStore } from "@/lib/store/inviteStore";
 import { Button } from "@/components/ui";
 
-export default function InvitePage({ params }: { params: { token: string } }) {
-  const router  = useRouter();
-  const invite  = useInviteStore((s) => s.getInvite)(params.token);
+interface InviteData {
+  token:       string;
+  ownerName:   string;
+  vehicleName: string;
+  vehicleId:   string;
+  ownerId:     string;
+  expiresAt:   string;
+}
 
-  if (!invite) {
+export default function InvitePage({ params }: { params: { token: string } }) {
+  const router = useRouter();
+
+  const [invite,  setInvite]  = useState<InviteData | null>(null);
+  const [status,  setStatus]  = useState<"loading" | "valid" | "invalid" | "used" | "expired">("loading");
+
+  useEffect(() => {
+    fetch(`/api/invites/${params.token}`)
+      .then((r) => {
+        if (r.status === 409) { setStatus("used");    return null; }
+        if (r.status === 410) { setStatus("expired"); return null; }
+        if (!r.ok)            { setStatus("invalid"); return null; }
+        return r.json();
+      })
+      .then((data) => {
+        if (data) { setInvite(data); setStatus("valid"); }
+      })
+      .catch(() => setStatus("invalid"));
+  }, [params.token]);
+
+  if (status === "loading") {
     return (
-      <div className="flex flex-col gap-4 w-full items-center py-8">
-        <span className="text-5xl">❌</span>
-        <p className="text-slate-900 font-semibold text-center">This invite link is invalid or has expired.</p>
-        <Link href="/login" className="text-accent-green font-semibold text-sm">Go to Login</Link>
+      <div className="flex flex-col items-center justify-center py-16 gap-4">
+        <div className="w-8 h-8 rounded-full border-2 border-accent-blue border-t-transparent animate-spin" />
+        <p className="text-sm text-slate-500">Checking invite...</p>
       </div>
     );
   }
 
-  if (invite.usedBy) {
+  if (status === "used") {
     return (
       <div className="flex flex-col gap-4 w-full items-center py-8">
         <span className="text-5xl">✅</span>
         <p className="text-slate-900 font-semibold text-center">This invite has already been used.</p>
         <Link href="/login" className="text-accent-green font-semibold text-sm">Login to your account</Link>
+      </div>
+    );
+  }
+
+  if (status === "expired") {
+    return (
+      <div className="flex flex-col gap-4 w-full items-center py-8">
+        <span className="text-5xl">⏰</span>
+        <p className="text-slate-900 font-semibold text-center">This invite link has expired.</p>
+        <p className="text-sm text-slate-500 text-center">Ask your owner to send a new invite.</p>
+        <Link href="/login" className="text-accent-green font-semibold text-sm">Go to Login</Link>
+      </div>
+    );
+  }
+
+  if (status === "invalid" || !invite) {
+    return (
+      <div className="flex flex-col gap-4 w-full items-center py-8">
+        <span className="text-5xl">❌</span>
+        <p className="text-slate-900 font-semibold text-center">This invite link is invalid or has expired.</p>
+        <Link href="/login" className="text-accent-green font-semibold text-sm">Go to Login</Link>
       </div>
     );
   }

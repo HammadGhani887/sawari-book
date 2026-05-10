@@ -72,16 +72,18 @@ enum SettlementStatus {
 // ── Models ─────────────────────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(uuid())
-  phone        String   @unique
-  name         String
-  role         Role
-  language     Language @default(EN)
-  photoUrl     String?
-  cnic         String?
-  passwordHash String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(uuid())
+  phone           String   @unique
+  email           String?  @unique
+  name            String
+  role            Role
+  language        Language @default(EN)
+  photoUrl        String?
+  cnic            String?
+  licenseImageUrl String?
+  passwordHash    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Vehicle ownership
   ownedVehicles     Vehicle[]          @relation("VehicleOwner")
@@ -97,6 +99,8 @@ model User {
   driverSettlements Settlement[]       @relation("SettlementDriver")
   // Notifications
   notifications     Notification[]
+  // Invites sent as owner
+  sentInvites       Invite[]       @relation("InviteOwner")
 
   @@map("users")
 }
@@ -120,6 +124,7 @@ model Vehicle {
   expenses          Expense[]
   fuelLogs          FuelLog[]
   settlements       Settlement[]
+  invites           Invite[]
 
   @@index([ownerId])
   @@index([isActive])
@@ -252,4 +257,23 @@ model Notification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+model Invite {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  ownerId     String
+  ownerName   String
+  vehicleId   String
+  vehicleName String
+  usedBy      String?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  owner   User    @relation("InviteOwner",  fields: [ownerId],   references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([token])
+  @@map("invites")
 }

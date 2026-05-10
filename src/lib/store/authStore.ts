@@ -27,8 +27,8 @@ interface AuthState {
   role: UserRole | null;
 
   // Async API-backed actions
-  register: (data: RegisterData) => Promise<{ ok: boolean; error?: string }>;
-  login: (credential: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  register: (data: RegisterData) => Promise<{ ok: boolean; error?: string; role?: UserRole }>;
+  login: (credential: string, password: string) => Promise<{ ok: boolean; error?: string; role?: UserRole }>;
   logout: () => void;
   updateProfile: (data: ProfileUpdate) => void;
   changePassword: (current: string, next: string) => { ok: boolean; error?: string };
@@ -56,13 +56,14 @@ export const useAuthStore = create<AuthState>()(
           });
           const json = await res.json();
           if (!res.ok) return { ok: false, error: json.error ?? "Registration failed" };
+          const role = json.user.role as UserRole;
           set({
             user:            json.user,
             token:           json.token,
             isAuthenticated: true,
-            role:            json.user.role as UserRole,
+            role,
           });
-          return { ok: true };
+          return { ok: true, role };
         } catch {
           return { ok: false, error: "Network error. Check your connection." };
         }
@@ -77,13 +78,14 @@ export const useAuthStore = create<AuthState>()(
           });
           const json = await res.json();
           if (!res.ok) return { ok: false, error: json.error ?? "Login failed" };
+          const role = json.user.role as UserRole;
           set({
             user:            json.user,
             token:           json.token,
             isAuthenticated: true,
-            role:            json.user.role as UserRole,
+            role,
           });
-          return { ok: true };
+          return { ok: true, role };
         } catch {
           return { ok: false, error: "Network error. Check your connection." };
         }

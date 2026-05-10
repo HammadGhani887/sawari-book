@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { expenses } from "@/app/api/_data/mockData";
+import { prisma } from "@/lib/prisma";
 import { verifyAuth, unauthorized, badRequest } from "@/app/api/_lib/auth";
-import type { Expense } from "@/lib/types";
 
 export async function GET(req: NextRequest) {
   const auth = verifyAuth(req);
@@ -13,14 +12,41 @@ export async function GET(req: NextRequest) {
   const startDate = searchParams.get("startDate");
   const endDate   = searchParams.get("endDate");
 
-  // TODO: Connect to Prisma + MySQL here.
-  let filtered = [...expenses];
-  if (vehicleId) filtered = filtered.filter((e) => e.vehicleId === vehicleId);
-  if (status)    filtered = filtered.filter((e) => e.status    === status);
-  if (startDate) filtered = filtered.filter((e) => e.date >= startDate);
-  if (endDate)   filtered = filtered.filter((e) => e.date <= endDate + "T23:59:59.999Z");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {};
 
-  return NextResponse.json(filtered.sort((a, b) => b.date.localeCompare(a.date)));
+  if (auth.role === "driver") {
+    where.loggedBy = auth.userId;
+  } else {
+    if (vehicleId) where.vehicleId = vehicleId;
+  }
+
+  if (status)    where.status = status.toUpperCase();
+  if (startDate || endDate) {
+    where.date = {};
+    if (startDate) where.date.gte = new Date(startDate);
+    if (endDate)   where.date.lte = new Date(endDate + "T23:59:59.999Z");
+  }
+
+  const expenses = await prisma.expense.findMany({
+    where,
+    orderBy: { date: "desc" },
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = expenses.map((e: any) => ({
+    id:         e.id,
+    vehicleId:  e.vehicleId,
+    loggedBy:   e.loggedBy,
+    category:   e.category.toLowerCase(),
+    amount:     Number(e.amount),
+    note:       e.note,
+    receiptUrl: e.receiptUrl,
+    status:     e.status.toLowerCase(),
+    date:       e.date.toISOString(),
+  }));
+
+  return NextResponse.json(result);
 }
 
 export async function POST(req: NextRequest) {
@@ -32,19 +58,31 @@ export async function POST(req: NextRequest) {
     return badRequest("vehicleId, category, and amount are required");
   }
 
-  // TODO: Connect to Prisma + MySQL here. prisma.expense.create({ data: body })
-  const expense: Expense = {
-    id:         `e${Date.now()}`,
-    vehicleId:  body.vehicleId,
-    loggedBy:   body.loggedBy ?? auth.userId,
-    category:   body.category,
-    amount:     Number(body.amount),
-    note:       body.note,
-    receiptUrl: body.receiptUrl,
-    status:     auth.role === "owner" ? "approved" : "pending",
-    date:       body.date ?? new Date().toISOString(),
-  };
-  expenses.unshift(expense);
+  // Owner-created expenses are auto-approved; driver-submitted are pending
+  const status = auth.role === "owner" ? "APPROVED" : "PENDING";
 
-  return NextResponse.json(expense, { status: 201 });
+  const expense = await prisma.expense.create({
+    data: {
+      vehicleId:  body.vehicleId,
+      loggedBy:   auth.userId,
+      category:   body.category.toUpperCase(),
+      amount:     Number(body.amount),
+      note:       body.note       ?? null,
+      receiptUrl: body.receiptUrl ?? null,
+      status,
+      date:       body.date ? new Date(body.date) : new Date(),
+    },
+  });
+
+  return NextResponse.json({
+    id:         expense.id,
+    vehicleId:  expense.vehicleId,
+    loggedBy:   expense.loggedBy,
+    category:   expense.category.toLowerCase(),
+    amount:     Number(expense.amount),
+    note:       expense.note,
+    receiptUrl: expense.receiptUrl,
+    status:     expense.status.toLowerCase(),
+    date:       expense.date.toISOString(),
+  }, { status: 201 });
 }

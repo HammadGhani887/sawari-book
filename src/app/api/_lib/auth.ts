@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET ?? "sawari-book-secret";
 
 export interface AuthContext {
   userId: string;
@@ -6,8 +9,8 @@ export interface AuthContext {
 }
 
 /**
- * Extracts and validates the Bearer token from Authorization header.
- * TODO: Connect to real JWT verification (jsonwebtoken.verify) + Prisma user lookup.
+ * Verifies the Bearer JWT from Authorization header.
+ * Returns { userId, role } on success, null on failure.
  */
 export function verifyAuth(req: NextRequest): AuthContext | null {
   const header = req.headers.get("authorization") ?? "";
@@ -15,10 +18,13 @@ export function verifyAuth(req: NextRequest): AuthContext | null {
   const token = header.slice(7).trim();
   if (!token) return null;
 
-  // Mock: any non-empty token is valid. Decode role from prefix.
-  // Real tokens will be JWTs signed with process.env.JWT_SECRET.
-  if (token.startsWith("driver-")) return { userId: "2", role: "driver" };
-  return { userId: "1", role: "owner" };
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+    const role = decoded.role === "driver" ? "driver" : "owner";
+    return { userId: decoded.userId, role };
+  } catch {
+    return null;
+  }
 }
 
 export function unauthorized() {

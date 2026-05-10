@@ -8,6 +8,8 @@ import { ExpenseCard } from "@/components/cards";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import { formatCurrency } from "@/lib/utils/format";
 import { useExpenseStore } from "@/lib/store/expenseStore";
+import api from "@/lib/services/api";
+import toast from "react-hot-toast";
 import type { Expense } from "@/lib/types";
 
 const THIS_MONTH = new Date().toISOString().slice(0, 7);
@@ -22,6 +24,26 @@ function formatDateLabel(dateStr: string): string {
 
 export default function ExpensesPage() {
   const { expenses, approveExpense, rejectExpense } = useExpenseStore();
+
+  async function handleApprove(id: string) {
+    approveExpense(id); // optimistic local update
+    try {
+      await api.patch(`/expenses/${id}/approve`);
+    } catch {
+      rejectExpense(id); // rollback — set back to pending isn't ideal but prevents silent diverge
+      toast.error("Failed to approve. Please try again.");
+    }
+  }
+
+  async function handleReject(id: string) {
+    rejectExpense(id); // optimistic local update
+    try {
+      await api.patch(`/expenses/${id}/reject`);
+    } catch {
+      approveExpense(id); // rollback
+      toast.error("Failed to reject. Please try again.");
+    }
+  }
 
   const [selectedCategory,  setSelectedCategory]  = useState("all");
   const [isPendingExpanded, setIsPendingExpanded] = useState(true);
@@ -147,8 +169,8 @@ export default function ExpensesPage() {
                     key={exp.id}
                     expense={exp}
                     showActions
-                    onApprove={approveExpense}
-                    onReject={rejectExpense}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
                   />
                 ))}
               </div>
