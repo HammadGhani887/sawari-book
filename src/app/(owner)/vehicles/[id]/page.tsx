@@ -11,7 +11,6 @@ import { useRideStore, TODAY } from "@/lib/store/rideStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useDriverStore } from "@/lib/store/driverStore";
 import { useAuthStore } from "@/lib/store/authStore";
-import { useInviteStore } from "@/lib/store/inviteStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { exportToPDF } from "@/lib/utils/pdfExport";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
@@ -50,13 +49,13 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
   const allRides      = useRideStore((s) => s.rides);
   const fuelLogs      = useFuelStore((s) => s.fuelLogs);
   const { expenses, approveExpense, rejectExpense } = useExpenseStore();
-  const currentUser   = useAuthStore((s) => s.user);
-  const createInvite  = useInviteStore((s) => s.createInvite);
+  const token         = useAuthStore((s) => s.token);
 
   const [dateRange, setDateRange] = useState<DateRange>("today");
   const [activeTab, setActiveTab] = useState<TabId>("rides");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied,     setCopied]     = useState(false);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
   const [customStart, setCustomStart] = useState(TODAY);
   const [customEnd,   setCustomEnd]   = useState(TODAY);
 
@@ -119,15 +118,35 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
     setEditingFuel(false);
   }
 
-  function handleGenerateInvite() {
-    const token = createInvite({
-      vehicleId,
-      ownerId:     currentUser?.id   ?? "1",
-      ownerName:   currentUser?.name ?? "Owner",
-      vehicleName: `${vehicle?.makeModel ?? "Vehicle"} · ${vehicle?.plateNumber ?? ""}`,
-    });
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    setInviteLink(`${origin}/invite/${token}`);
+  async function handleGenerateInvite() {
+    setGeneratingInvite(true);
+    try {
+      const res = await fetch("/api/invites", {
+        method:  "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ vehicleId }),
+      });
+      let json: { ok?: boolean; token?: string; error?: string } = {};
+      try { json = await res.json(); } catch { /* empty */ }
+      if (!res.ok) {
+        toast.error(json.error ?? `Error ${res.status}`);
+        return;
+      }
+      if (!json.token) {
+        toast.error("No token returned");
+        return;
+      }
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      setInviteLink(`${origin}/invite/${json.token}`);
+      toast.success("Invite link created ✓");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setGeneratingInvite(false);
+    }
   }
 
   async function handleCopy() {
@@ -216,10 +235,11 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
               ) : (
                 <button
                   onClick={handleGenerateInvite}
-                  className="flex items-center gap-2 text-accent-green text-sm font-semibold active:opacity-70"
+                  disabled={generatingInvite}
+                  className="flex items-center gap-2 text-accent-green text-sm font-semibold active:opacity-70 disabled:opacity-50"
                 >
                   <Link2 size={15} />
-                  Generate Invite Link
+                  {generatingInvite ? "Generating..." : "Generate Invite Link"}
                 </button>
               )}
             </div>
