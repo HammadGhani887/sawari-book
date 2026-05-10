@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
   if (auth.role === "driver") {
     where.driverId = auth.userId;
   } else {
+    // Owner filter: only logs for vehicles owned by this user
+    where.vehicle = { ownerId: auth.userId };
     if (vehicleId) where.vehicleId = vehicleId;
   }
 

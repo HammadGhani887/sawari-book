@@ -24,9 +24,10 @@ export async function GET(req: NextRequest) {
       photoUrl:     a.driver.photoUrl ?? undefined,
       isActive:     a.isActive,
       vehicleId:    a.vehicleId,
-      salaryType:   a.salaryType.toLowerCase() as "fixed" | "percentage" | "hybrid",
-      salaryAmount: Number(a.salaryAmount),
-      startDate:    a.startDate.toISOString().slice(0, 10),
+      salaryType:     a.salaryType.toLowerCase() as "fixed" | "percentage" | "hybrid",
+      salaryAmount:   Number(a.salaryAmount),
+      dailyTargetPkr: a.dailyTargetPkr ? Number(a.dailyTargetPkr) : undefined,
+      startDate:      a.startDate.toISOString().slice(0, 10),
     }));
 
     return NextResponse.json(result);
@@ -55,9 +56,10 @@ export async function GET(req: NextRequest) {
       photoUrl:     a.driver.photoUrl ?? undefined,
       isActive:     a.isActive,
       vehicleId:    a.vehicleId,
-      salaryType:   a.salaryType.toLowerCase() as "fixed" | "percentage" | "hybrid",
-      salaryAmount: Number(a.salaryAmount),
-      startDate:    a.startDate.toISOString().slice(0, 10),
+      salaryType:     a.salaryType.toLowerCase() as "fixed" | "percentage" | "hybrid",
+      salaryAmount:   Number(a.salaryAmount),
+      dailyTargetPkr: a.dailyTargetPkr ? Number(a.dailyTargetPkr) : undefined,
+      startDate:      a.startDate.toISOString().slice(0, 10),
     }];
 
     return NextResponse.json(result);

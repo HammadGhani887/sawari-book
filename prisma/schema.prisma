@@ -146,6 +146,7 @@ model DriverAssignment {
   hybridPercent Decimal?   @db.Decimal(5, 2)
   startDate     DateTime   @db.Date
   endDate       DateTime?  @db.Date
+  dailyTargetPkr Decimal?   @db.Decimal(10, 2)
   isActive      Boolean    @default(true)
   createdAt     DateTime   @default(now())
 
@@ -274,6 +275,10 @@ model Invite {
   vehicleId   String
   vehicleName String
   usedBy      String?
+  salaryType    SalaryType?
+  salaryAmount  Decimal?    @db.Decimal(10, 2)
+  hybridBase    Decimal?    @db.Decimal(10, 2)
+  hybridPercent Decimal?    @db.Decimal(5, 2)
   expiresAt   DateTime
   createdAt   DateTime  @default(now())
 

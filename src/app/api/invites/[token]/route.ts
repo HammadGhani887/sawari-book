@@ -69,13 +69,15 @@ export async function PATCH(
     // Create new DriverAssignment
     const newAssignment = await tx.driverAssignment.create({
       data: {
-        driverId:     body.usedBy,
-        vehicleId:    invite.vehicleId,
-        ownerId:      invite.ownerId,
-        salaryType:   "FIXED",
-        salaryAmount: 0,
-        startDate:    new Date(),
-        isActive:     true,
+        driverId:      body.usedBy,
+        vehicleId:     invite.vehicleId,
+        ownerId:       invite.ownerId,
+        salaryType:    invite.salaryType   ?? "FIXED",
+        salaryAmount:  invite.salaryAmount ?? 0,
+        hybridBase:    invite.hybridBase,
+        hybridPercent: invite.hybridPercent,
+        startDate:     new Date(),
+        isActive:      true,
       },
     });
 

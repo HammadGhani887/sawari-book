@@ -6,6 +6,7 @@ function formatVehicle(v: {
   id: string; ownerId: string; plateNumber: string; makeModel: string;
   fuelType: string; platforms: unknown; insuranceExpiry: Date | null;
   photoUrl: string | null; isActive: boolean;
+  fuelAverageKmL?: unknown; petrolPricePkrL?: unknown; tankCapacityLitres?: unknown;
 }) {
   return {
     id:              v.id,
@@ -17,6 +18,9 @@ function formatVehicle(v: {
     insuranceExpiry: v.insuranceExpiry?.toISOString().slice(0, 10) ?? undefined,
     photoUrl:        v.photoUrl ?? undefined,
     isActive:        v.isActive,
+    fuelAverageKmL:     v.fuelAverageKmL ? Number(v.fuelAverageKmL) : undefined,
+    petrolPricePkrL:    v.petrolPricePkrL ? Number(v.petrolPricePkrL) : undefined,
+    tankCapacityLitres: v.tankCapacityLitres ? Number(v.tankCapacityLitres) : undefined,
   };
 }
 

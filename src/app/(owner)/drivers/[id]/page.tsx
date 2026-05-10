@@ -8,10 +8,8 @@ import { ProfitLineChart } from "@/components/charts";
 import { formatCurrency } from "@/lib/utils/format";
 import { useDriverStore } from "@/lib/store/driverStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
-import { useRideStore, TODAY } from "@/lib/store/rideStore";
-import { useExpenseStore } from "@/lib/store/expenseStore";
-import { useSettlementStore } from "@/lib/store/settlementStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
+import { useAuthStore } from "@/lib/store/authStore";
 import toast from "react-hot-toast";
 import type { SalaryType } from "@/lib/types";
 
@@ -159,20 +157,62 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
   const avgDaily     = totalRevenue > 0 ? Math.round(totalRevenue / Math.max(driverRides.length / 6, 1)) : 0;
   const initials     = driver?.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) ?? "??";
 
-  function saveSalary() {
+  async function saveSalary() {
     const amt = Number(salaryAmount);
     if (amt < 0) { toast.error("Enter valid amount"); return; }
-    updateDriver(driverId, { salaryType, salaryAmount: amt });
-    toast.success("Salary updated ✓");
-    setEditingSalary(false);
+    
+    try {
+      const token = useAuthStore.getState().token;
+      const res = await fetch(`/api/drivers/${driverId}`, {
+        method:  "PATCH",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ salaryType, salaryAmount: amt }),
+      });
+
+      if (!res.ok) {
+        toast.error("Failed to update salary");
+        return;
+      }
+
+      const updated = await res.json();
+      updateDriver(driverId, updated);
+      toast.success("Salary updated ✓");
+      setEditingSalary(false);
+    } catch {
+      toast.error("Network error");
+    }
   }
 
-  function saveTarget() {
+  async function saveTarget() {
     const t = Number(targetInput);
     if (t < 0) { toast.error("Enter valid target"); return; }
-    updateDriver(driverId, { dailyTargetPkr: t > 0 ? t : undefined });
-    toast.success("Daily target updated ✓");
-    setEditingTarget(false);
+    
+    try {
+      const token = useAuthStore.getState().token;
+      const res = await fetch(`/api/drivers/${driverId}`, {
+        method:  "PATCH",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ dailyTargetPkr: t > 0 ? t : null }),
+      });
+
+      if (!res.ok) {
+        toast.error("Failed to update target");
+        return;
+      }
+
+      const updated = await res.json();
+      updateDriver(driverId, updated);
+      toast.success("Daily target updated ✓");
+      setEditingTarget(false);
+    } catch {
+      toast.error("Network error");
+    }
   }
 
   const salaryLabel = driver?.salaryType === "fixed"

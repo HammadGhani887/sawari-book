@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
   if (auth.role === "driver") {
     where.driverId = auth.userId;
   } else {
+    // Owner filter: only rides for vehicles owned by this user
+    where.vehicle = { ownerId: auth.userId };
     if (vehicleId) where.vehicleId = vehicleId;
     if (driverId)  where.driverId  = driverId;
   }

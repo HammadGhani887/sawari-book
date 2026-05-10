@@ -63,7 +63,15 @@ export default function AddDriverPage() {
           "Content-Type":  "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({ vehicleId }),
+        body: JSON.stringify({
+          vehicleId,
+          salaryType,
+          salaryAmount: salaryType === "fixed"      ? Number(fixedAmount) || 0
+                      : salaryType === "percentage" ? Number(percentage)  || 0
+                      : Number(hybridBase) || 0,
+          hybridBase:   salaryType === "hybrid" ? Number(hybridBase)   : undefined,
+          hybridPercent: salaryType === "hybrid" ? Number(hybridBonus) : undefined,
+        }),
       });
 
       let json: { ok?: boolean; token?: string; error?: string } = {};

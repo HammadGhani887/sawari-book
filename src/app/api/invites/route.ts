@@ -53,10 +53,14 @@ export async function POST(req: NextRequest) {
   const invite = await prisma.invite.create({
     data: {
       token,
-      ownerId:     userId,
-      ownerName:   owner.name,
-      vehicleId:   body.vehicleId,
-      vehicleName: `${vehicle.makeModel} · ${vehicle.plateNumber}`,
+      ownerId:       userId,
+      ownerName:     owner.name,
+      vehicleId:     body.vehicleId,
+      vehicleName:   `${vehicle.makeModel} · ${vehicle.plateNumber}`,
+      salaryType:    body.salaryType ? body.salaryType.toUpperCase() : null,
+      salaryAmount:  body.salaryAmount ? Number(body.salaryAmount)  : null,
+      hybridBase:    body.hybridBase   ? Number(body.hybridBase)    : null,
+      hybridPercent: body.hybridPercent ? Number(body.hybridPercent) : null,
       expiresAt,
     },
   });

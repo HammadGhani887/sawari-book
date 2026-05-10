@@ -19,7 +19,8 @@ export interface DriverProfile {
 
 interface DriverState {
   drivers: DriverProfile[];
-  addDriver: (data: Omit<DriverProfile, "id">) => void;
+  setDrivers: (drivers: DriverProfile[]) => void;
+  addDriver: (data: DriverProfile) => void;
   updateDriver: (id: string, updates: Partial<DriverProfile>) => void;
   removeDriver: (id: string) => void;
 }
@@ -29,9 +30,11 @@ export const useDriverStore = create<DriverState>()(
     (set) => ({
       drivers: [],
 
+      setDrivers: (drivers) => set({ drivers }),
+
       addDriver: (data) =>
         set((s) => ({
-          drivers: [{ ...data, id: `d${Date.now()}` }, ...s.drivers],
+          drivers: [data, ...s.drivers],
         })),
 
       updateDriver: (id, updates) =>
