@@ -118,21 +118,21 @@ export default function DriverHomePage() {
   const firstName    = user?.name?.split(" ")[0] ?? "Driver";
   const vehicle      = vehicles.find((v) => v.id === driver?.vehicleId);
   const vehicleLabel = vehicle ? `${vehicle.makeModel} · ${vehicle.plateNumber}` : "No vehicle assigned";
-  const driverId     = driver?.id ?? "";
+  const userId       = user?.id ?? "";
   const vehicleId    = driver?.vehicleId ?? "";
   const dailyTarget  = driver?.dailyTargetPkr ?? 0;
 
   const todayRides = useMemo(
-    () => rides.filter((r) => r.driverId === driverId && r.rideTime.startsWith(TODAY)),
-    [rides, driverId]
+    () => rides.filter((r) => r.driverId === userId && r.rideTime.startsWith(TODAY)),
+    [rides, userId]
   );
   const todayFuel = useMemo(
     () => fuelLogs.filter((f) => f.vehicleId === vehicleId && f.date.startsWith(TODAY)),
     [fuelLogs, vehicleId]
   );
   const todayApprovedExpenses = useMemo(
-    () => expenses.filter((e) => e.loggedBy === driverId && e.date.startsWith(TODAY) && e.status === "approved"),
-    [expenses, driverId]
+    () => expenses.filter((e) => e.loggedBy === userId && e.date.startsWith(TODAY) && e.status === "approved"),
+    [expenses, userId]
   );
 
   const todayRevenue  = todayRides.reduce((s, r) => s + r.fareAmount, 0);
@@ -173,7 +173,7 @@ export default function DriverHomePage() {
     }));
 
     const expenseEntries: LogEntry[] = expenses
-      .filter((e) => e.loggedBy === driverId && e.date.startsWith(TODAY))
+      .filter((e) => e.loggedBy === userId && e.date.startsWith(TODAY))
       .map((e) => ({
         key:         e.id,
         time:        new Date(e.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
@@ -187,7 +187,7 @@ export default function DriverHomePage() {
 
     return [...rideEntries, ...fuelEntries, ...expenseEntries]
       .sort((a, b) => b.time.localeCompare(a.time));
-  }, [todayRides, todayFuel, expenses, driverId]);
+  }, [todayRides, todayFuel, expenses, userId]);
 
   return (
     <div className="px-4 pt-5 pb-4 flex flex-col gap-5">

@@ -99,7 +99,7 @@ export default function AddRidePage() {
 
     const rideData = {
       vehicleId:          driver?.vehicleId ?? "",
-      driverId:           driver?.id ?? "",
+      driverId:           useAuthStore.getState().user?.id ?? "",
       platform,
       fareAmount:         fareNum,
       paymentType:        payment,
@@ -128,13 +128,16 @@ export default function AddRidePage() {
       let savedToDb = false;
       try {
         await api.post("/rides", {
-          vehicleId:   rideData.vehicleId,
-          platform:    rideData.platform,
-          fareAmount:  rideData.fareAmount,
-          paymentType: rideData.paymentType,
-          pickupArea:  rideData.pickupArea,
-          dropoffArea: rideData.dropoffArea,
-          rideTime:    rideData.rideTime,
+          vehicleId:         rideData.vehicleId,
+          platform:          rideData.platform,
+          fareAmount:        rideData.fareAmount,
+          paymentType:       rideData.paymentType,
+          pickupArea:        rideData.pickupArea,
+          dropoffArea:       rideData.dropoffArea,
+          distanceKm:        rideData.distanceKm,
+          estimatedFuelCost: rideData.estimatedFuelCost,
+          boostCost:         rideData.boostCost,
+          rideTime:          rideData.rideTime,
         });
         savedToDb = true;
       } catch {

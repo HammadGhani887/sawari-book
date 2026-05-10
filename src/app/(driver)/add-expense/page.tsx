@@ -51,7 +51,7 @@ export default function DriverAddExpensePage() {
     await new Promise((r) => setTimeout(r, 400));
     const expenseData = {
       vehicleId: driver?.vehicleId ?? "",
-      loggedBy:  driver?.id ?? "",
+      loggedBy:  useAuthStore.getState().user?.id ?? "",
       category,
       amount:    Number(amount),
       note:      note || undefined,

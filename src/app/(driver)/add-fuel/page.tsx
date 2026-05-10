@@ -8,6 +8,7 @@ import { ScreenHeader, NumericKeypad, Input, Button, Badge } from "@/components/
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
+import { useAuthStore } from "@/lib/store/authStore";
 import { saveFuelOffline } from "@/hooks/useOfflineQueue";
 import api from "@/lib/services/api";
 
@@ -67,7 +68,7 @@ export default function AddFuelPage() {
     await new Promise((r) => setTimeout(r, 400));
     const fuelData = {
       vehicleId:  driver?.vehicleId ?? "",
-      driverId:   driver?.id ?? "",
+      driverId:   useAuthStore.getState().user?.id ?? "",
       amountPkr:  Number(amount),
       litres:     Number(litres),
       odometer:   odometer ? Number(odometer) : undefined,
