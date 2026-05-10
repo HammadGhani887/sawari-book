@@ -6,8 +6,8 @@ import toast from "react-hot-toast";
 import { ScreenHeader, Input, Button, Badge } from "@/components/ui";
 import { PLATFORMS } from "@/lib/constants/platforms";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
+import api from "@/lib/services/api";
 import type { FuelType, PlatformId } from "@/lib/types";
-
 const FUEL_TYPES: { id: FuelType; label: string }[] = [
   { id: "petrol", label: "Petrol" },
   { id: "diesel", label: "Diesel" },
@@ -60,20 +60,30 @@ export default function AddVehiclePage() {
   async function handleSubmit() {
     if (!canSubmit || !fuelType) return;
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
-    addVehicle({
-      plateNumber:        plate.trim().toUpperCase(),
-      makeModel:          makeModel.trim(),
-      fuelType,
-      platforms:          selectedPlatforms,
-      insuranceExpiry:    insuranceExpiry || undefined,
-      tankCapacityLitres: tankCapacity ? Number(tankCapacity) : undefined,
-      fuelAverageKmL:     fuelAverage  ? Number(fuelAverage)  : undefined,
-      petrolPricePkrL:    petrolPrice  ? Number(petrolPrice)  : undefined,
-      isActive:           true,
-    });
-    toast.success("Vehicle saved ✓");
-    router.push("/vehicles");
+    try {
+      const res = await api.post("/vehicles", {
+        plateNumber:        plate.trim().toUpperCase(),
+        makeModel:          makeModel.trim(),
+        fuelType,
+        platforms:          selectedPlatforms,
+        insuranceExpiry:    insuranceExpiry || undefined,
+        tankCapacityLitres: tankCapacity ? Number(tankCapacity) : undefined,
+        fuelAverageKmL:     fuelAverage  ? Number(fuelAverage)  : undefined,
+        petrolPricePkrL:    petrolPrice  ? Number(petrolPrice)  : undefined,
+      });
+      // Add to local store with the real DB id
+      addVehicle({
+        ...res.data,
+        isActive: true,
+      });
+      toast.success("Vehicle saved ✓");
+      router.push("/vehicles");
+    } catch (err) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg ?? "Failed to save vehicle");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
