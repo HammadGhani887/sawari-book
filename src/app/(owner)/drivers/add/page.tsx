@@ -63,22 +63,32 @@ export default function AddDriverPage() {
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error ?? "Could not create invite");
+        setInviting(false);
         return;
       }
+
       const inviteUrl = `${window.location.origin}/invite/${json.token}`;
       const vehicle   = vehicles.find((v) => v.id === vehicleId);
       const msg       = `Sawari Book invite!\nJoin as my driver for ${vehicle?.makeModel ?? "my vehicle"}.\n${inviteUrl}`;
 
-      // Try Web Share API first (mobile), fallback to WhatsApp link
-      if (navigator.share) {
-        await navigator.share({ title: "Sawari Book Driver Invite", text: msg, url: inviteUrl });
-      } else {
-        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
-      }
       toast.success("Invite link created ✓");
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to create invite");
+
+      // Try Web Share API first (mobile), fallback to WhatsApp link
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: "Sawari Book Driver Invite", text: msg, url: inviteUrl });
+        } else {
+          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+        }
+      } catch (shareErr: unknown) {
+        // User cancelled share — not an error, link was already created
+        if (shareErr instanceof Error && shareErr.name !== "AbortError") {
+          // Fallback to WhatsApp if share failed for other reason
+          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+        }
+      }
+    } catch {
+      toast.error("Network error. Check your connection.");
     } finally {
       setInviting(false);
     }
