@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui";
@@ -8,14 +8,16 @@ import { KPICard, VehicleCard } from "@/components/cards";
 import { WeeklyBarChart } from "@/components/charts";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
-import { useRideStore, TODAY } from "@/lib/store/rideStore";
+import { useRideStore } from "@/lib/store/rideStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useDriverStore } from "@/lib/store/driverStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { formatCurrency, getGreeting } from "@/lib/utils/format";
 import { Calculator } from "lucide-react";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
-import { ScreenHeader } from "@/components/ui";
+import { ScreenHeader, DateRangeFilter } from "@/components/ui";
+import { getRangeInterval, isDateInRange, DateRangeType } from "@/lib/utils/date";
+import { exportToPDF, exportToExcel, ExportData } from "@/lib/utils/export";
 import api from "@/lib/services/api";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -31,7 +33,27 @@ export default function OwnerDashboardPage() {
   const drivers     = useDriverStore((s) => s.drivers);
   const fuelLogs    = useFuelStore((s) => s.fuelLogs);
 
-  // Refresh rides on mount to get latest data with fuel costs
+  const [rangeType, setRangeType] = useState<DateRangeType>("today");
+  const [customRange, setCustomRange] = useState({ 
+    start: new Date().toISOString().slice(0, 10), 
+    end: new Date().toISOString().slice(0, 10) 
+  });
+
+  const activeInterval = useMemo(() => getRangeInterval(rangeType, customRange), [rangeType, customRange]);
+
+  const filteredRides = useMemo(() => 
+    rides.filter(r => isDateInRange(r.rideTime, activeInterval)),
+  [rides, activeInterval]);
+
+  const filteredExpenses = useMemo(() => 
+    expenses.filter(e => isDateInRange(e.date, activeInterval)),
+  [expenses, activeInterval]);
+
+  const filteredFuelLogs = useMemo(() => 
+    fuelLogs.filter(f => isDateInRange(f.date, activeInterval)),
+  [fuelLogs, activeInterval]);
+
+  // Refresh rides on mount
   useEffect(() => {
     async function refreshRides() {
       try {
@@ -40,42 +62,34 @@ export default function OwnerDashboardPage() {
           useRideStore.setState({ rides: res.data });
         }
       } catch {
-        // Ignore errors, use cached data
+        // Ignore errors
       }
     }
     refreshRides();
   }, []);
 
-  // Weekly bar chart — Mon-Sun centred on today (2026-05-07 = Wednesday)
+  // Performance data — last 7 days revenue for chart (remains fixed for history view)
   const weeklyData = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(TODAY + "T00:00:00.000Z");
-      d.setUTCDate(d.getUTCDate() - (6 - i));
-      const dateStr = d.toISOString().slice(0, 10);
-      const revenue = rides
-        .filter((r) => r.rideTime.startsWith(dateStr))
-        .reduce((s, r) => s + r.fareAmount, 0);
-      return { day: WEEK_DAYS[d.getUTCDay()], revenue };
+    const last7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return d.toISOString().slice(0, 10);
+    });
+
+    return last7.map((date) => {
+      const dayRides = rides.filter((r) => r.rideTime.startsWith(date));
+      const revenue  = dayRides.reduce((s, r) => s + r.fareAmount, 0);
+      return { day: WEEK_DAYS[new Date(date).getDay()], revenue };
     });
   }, [rides]);
 
-  // Today's stats per vehicle
-  const todayRides = useMemo(
-    () => rides.filter((r) => r.rideTime.startsWith(TODAY)),
-    [rides]
-  );
-  
-  const todayFuelLogs = useMemo(
-    () => fuelLogs.filter((f) => f.date.startsWith(TODAY)),
-    [fuelLogs]
-  );
-
+  // Stats per vehicle for selected range
   const vehicleStats = useMemo(() => {
     return Object.fromEntries(
       vehicles.map((v) => {
-        const vRides = todayRides.filter((r) => r.vehicleId === v.id);
-        const vFuelLogs = todayFuelLogs.filter((f) => f.vehicleId === v.id);
-        const vExpenses = expenses.filter((e) => e.vehicleId === v.id && e.status === "approved" && e.date.startsWith(TODAY));
+        const vRides = filteredRides.filter((r) => r.vehicleId === v.id);
+        const vFuelLogs = filteredFuelLogs.filter((f) => f.vehicleId === v.id);
+        const vExpenses = filteredExpenses.filter((e) => e.vehicleId === v.id && e.status === "approved");
         
         const rev    = vRides.reduce((s, r) => s + r.fareAmount, 0);
         const actual = vFuelLogs.reduce((s, f) => s + f.amountPkr, 0);
@@ -98,11 +112,11 @@ export default function OwnerDashboardPage() {
         ];
       })
     );
-  }, [vehicles, todayRides, todayFuelLogs, expenses, drivers]);
+  }, [vehicles, filteredRides, filteredFuelLogs, filteredExpenses, drivers]);
 
   // KPI totals
-  const totalRides    = todayRides.length;
-  const totalRevenue  = todayRides.reduce((s, r) => s + r.fareAmount, 0);
+  const totalRides    = filteredRides.length;
+  const totalRevenue  = filteredRides.reduce((s, r) => s + r.fareAmount, 0);
   
   // Fuel & Profit breakdown
   const { fleetFuelCost, fleetBoostCost, fleetFuelSource } = useMemo(() => {
@@ -112,8 +126,8 @@ export default function OwnerDashboardPage() {
     let hasEst    = false;
 
     vehicles.forEach((v) => {
-      const vRides = todayRides.filter((r) => r.vehicleId === v.id);
-      const vFuelLogs = todayFuelLogs.filter((f) => f.vehicleId === v.id);
+      const vRides = filteredRides.filter((r) => r.vehicleId === v.id);
+      const vFuelLogs = filteredFuelLogs.filter((f) => f.vehicleId === v.id);
       const vActual = vFuelLogs.reduce((s, f) => s + f.amountPkr, 0);
       const vEst    = vRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
       const vBoost  = vRides.reduce((s, r) => s + (r.boostCost ?? 0), 0);
@@ -126,25 +140,53 @@ export default function OwnerDashboardPage() {
 
     const source = hasActual && hasEst ? "mixed" : hasActual ? "actual" : hasEst ? "est." : null;
     return { fleetFuelCost: totalFuel, fleetBoostCost: totalBoost, fleetFuelSource: source };
-  }, [vehicles, todayRides, todayFuelLogs]);
+  }, [vehicles, filteredRides, filteredFuelLogs]);
 
-  const totalExpenses = expenses
-    .filter((e) => e.status === "approved" && e.date.startsWith(TODAY))
+  const totalExpenses = filteredExpenses
+    .filter((e) => e.status === "approved")
     .reduce((s, e) => s + e.amount, 0);
 
   const netProfit = totalRevenue - fleetFuelCost - totalExpenses - fleetBoostCost;
 
-  // Revenue anomaly detection — compare today vs last 7 days average per vehicle
+  const handleExport = (format: "pdf" | "excel") => {
+    const rangeLabel = rangeType === "custom" 
+      ? `${customRange.start} to ${customRange.end}` 
+      : rangeType.charAt(0).toUpperCase() + rangeType.slice(1);
+
+    const exportData: ExportData = {
+      title: "Fleet Performance Report",
+      subtitle: `Period: ${rangeLabel}`,
+      filename: `Swaari_Fleet_Report_${rangeType}`,
+      headers: ["Vehicle", "Driver", "Rides", "Revenue (PKR)", "Estimated Profit (PKR)"],
+      rows: vehicles.map(v => {
+        const stats = vehicleStats[v.id];
+        return [
+          `${v.makeModel} (${v.plateNumber})`,
+          stats.driver,
+          stats.rides,
+          stats.revenue.toLocaleString(),
+          stats.profit.toLocaleString()
+        ];
+      })
+    };
+
+    if (format === "pdf") exportToPDF(exportData);
+    else exportToExcel(exportData);
+  };
+
+  // Revenue anomaly detection — compare current revenue vs historical average
   const anomalies = useMemo(() => {
     const alerts: { vehicleId: string; plateNumber: string; driverName: string; todayRev: number; avgRev: number; pctDrop: number }[] = [];
+    if (rangeType !== "today") return alerts; // Only show anomalies for today
+    
     const hour = new Date().getHours();
     if (hour < 12) return alerts; // only alert after noon
 
     vehicles.forEach((v) => {
-      const vTodayRev = todayRides.filter((r) => r.vehicleId === v.id).reduce((s, r) => s + r.fareAmount, 0);
+      const vTodayRev = filteredRides.filter((r) => r.vehicleId === v.id).reduce((s, r) => s + r.fareAmount, 0);
       const last7 = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(TODAY + "T00:00:00.000Z");
-        d.setUTCDate(d.getUTCDate() - (i + 1));
+        const d = new Date();
+        d.setDate(d.getDate() - (i + 1));
         return d.toISOString().slice(0, 10);
       });
       const past7 = last7.map((date) =>
@@ -166,7 +208,7 @@ export default function OwnerDashboardPage() {
       }
     });
     return alerts;
-  }, [vehicles, todayRides, rides, drivers]);
+  }, [vehicles, filteredRides, rides, drivers, rangeType]);
 
   return (
     <div className="px-4 pt-4 pb-4 flex flex-col gap-5">
@@ -174,7 +216,38 @@ export default function OwnerDashboardPage() {
         title={`${getGreeting()}, ${firstName}`}
         titleUrdu="خوش آمدید"
         showNotifications
+        showRefresh={true}
       />
+
+      <DateRangeFilter
+        selected={rangeType}
+        onChange={setRangeType}
+        customRange={customRange}
+        onCustomChange={setCustomRange}
+        accentColor="green"
+      />
+
+      {/* ── Export Section ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+        <div>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reports</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Export data for this period</p>
+        </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => handleExport("pdf")}
+            className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+          >
+            PDF
+          </button>
+          <button 
+            onClick={() => handleExport("excel")}
+            className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+          >
+            Excel
+          </button>
+        </div>
+      </div>
 
       {/* ── KPI grid ── */}
       <div className="grid grid-cols-2 gap-3">

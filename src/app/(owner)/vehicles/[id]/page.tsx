@@ -16,15 +16,12 @@ import { exportToPDF } from "@/lib/utils/pdfExport";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import toast from "react-hot-toast";
 import api from "@/lib/services/api";
+import { getRangeInterval, isDateInRange } from "@/lib/utils/date";
 
 type DateRange = "today" | "week" | "month" | "custom";
 type TabId     = "rides" | "expenses" | "summary" | "fuel";
 
-const WEEK_START = (() => {
-  const d = new Date();
-  d.setDate(d.getDate() - 6);
-  return d.toISOString().slice(0, 10);
-})();
+
 
 function Stat({ icon, value, label, colorClass = "text-slate-900" }: {
   icon: string; value: string; label: string; colorClass?: string;
@@ -71,7 +68,8 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
       }
     }
     fetchVehicle();
-  }, [vehicleId, storeVehicle, updateVehicle]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleId]);
 
   const [dateRange, setDateRange] = useState<DateRange>("today");
   const [activeTab, setActiveTab] = useState<TabId>("rides");
@@ -112,29 +110,19 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
   const effectiveAvg = getEffective(vehicleId, fuelLogs);
   const driver = drivers.find((d) => d.vehicleId === vehicleId);
 
+  const activeInterval = useMemo(() => {
+    return getRangeInterval(dateRange, dateRange === "custom" ? { start: customStart, end: customEnd } : undefined);
+  }, [dateRange, customStart, customEnd]);
+
   const filteredRides = useMemo(() => {
     const vRides = allRides.filter((r) => r.vehicleId === vehicleId);
-    if (dateRange === "today") return vRides.filter((r) => r.rideTime.startsWith(TODAY));
-    if (dateRange === "week")  return vRides.filter((r) => r.rideTime.slice(0, 10) >= WEEK_START);
-    if (dateRange === "custom") {
-      const s = customStart || TODAY;
-      const e = customEnd   || TODAY;
-      return vRides.filter((r) => r.rideTime.slice(0, 10) >= s && r.rideTime.slice(0, 10) <= e);
-    }
-    return vRides;
-  }, [allRides, vehicleId, dateRange, customStart, customEnd]);
+    return vRides.filter((r) => isDateInRange(r.rideTime, activeInterval));
+  }, [allRides, vehicleId, activeInterval]);
 
   const filteredExpenses = useMemo(() => {
     const vExp = expenses.filter((e) => e.vehicleId === vehicleId);
-    if (dateRange === "today") return vExp.filter((e) => e.date.startsWith(TODAY));
-    if (dateRange === "week")  return vExp.filter((e) => e.date.slice(0, 10) >= WEEK_START);
-    if (dateRange === "custom") {
-      const s = customStart || TODAY;
-      const e = customEnd   || TODAY;
-      return vExp.filter((exp) => exp.date.slice(0, 10) >= s && exp.date.slice(0, 10) <= e);
-    }
-    return vExp;
-  }, [expenses, vehicleId, dateRange, customStart, customEnd]);
+    return vExp.filter((e) => isDateInRange(e.date, activeInterval));
+  }, [expenses, vehicleId, activeInterval]);
 
   const totalRevenue  = filteredRides.reduce((s, r) => s + r.fareAmount, 0);
   const totalExpenses = filteredExpenses
@@ -427,7 +415,7 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
           <Card>
             {(() => {
               const fuelCostToday = fuelLogs
-                .filter((f) => f.vehicleId === vehicleId && (dateRange === "today" ? f.date.startsWith(TODAY) : dateRange === "week" ? f.date.slice(0,10) >= WEEK_START : true))
+                .filter((f) => f.vehicleId === vehicleId && isDateInRange(f.date, activeInterval))
                 .reduce((s, f) => s + f.amountPkr, 0);
               const estFuelFromRides = filteredRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
               const fuelCost = fuelCostToday > 0 ? fuelCostToday : estFuelFromRides;

@@ -6,9 +6,10 @@ import { Car, Calculator, GitCompare } from "lucide-react";
 import { ScreenHeader } from "@/components/ui";
 import { VehicleCard } from "@/components/cards";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
-import { useRideStore, TODAY } from "@/lib/store/rideStore";
+import { useRideStore } from "@/lib/store/rideStore";
 import { useDriverStore } from "@/lib/store/driverStore";
 import { useMemo } from "react";
+import { getRangeInterval, isDateInRange } from "@/lib/utils/date";
 
 export default function VehiclesPage() {
   const router   = useRouter();
@@ -16,9 +17,11 @@ export default function VehiclesPage() {
   const rides    = useRideStore((s) => s.rides);
   const drivers  = useDriverStore((s) => s.drivers);
 
+  const todayRange = useMemo(() => getRangeInterval("today"), []);
+
   const todayRides = useMemo(
-    () => rides.filter((r) => r.rideTime.startsWith(TODAY)),
-    [rides]
+    () => rides.filter((r) => isDateInRange(r.rideTime, todayRange)),
+    [rides, todayRange]
   );
 
   return (
@@ -26,6 +29,7 @@ export default function VehiclesPage() {
       <ScreenHeader
         title="My Vehicles"
         titleUrdu="میری گاڑیاں"
+        showRefresh={true}
         rightAction={
           <Link
             href="/vehicles/add"

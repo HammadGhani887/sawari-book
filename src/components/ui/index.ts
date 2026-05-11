@@ -9,4 +9,5 @@ export { default as ScreenHeader }        from "./ScreenHeader";
 export { default as StatCard }            from "./StatCard";
 export { default as NumericKeypad }       from "./NumericKeypad";
 export { default as DateRangeSelector }   from "./DateRangeSelector";
+export { default as DateRangeFilter }     from "./DateRangeFilter";
 export { SkeletonCard, SkeletonText, SkeletonCircle, SkeletonKPIGrid, SkeletonList } from "./Skeleton";

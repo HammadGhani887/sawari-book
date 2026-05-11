@@ -8,21 +8,18 @@ import { ProfitLineChart } from "@/components/charts";
 import { formatCurrency } from "@/lib/utils/format";
 import { useDriverStore } from "@/lib/store/driverStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
-import { useRideStore, TODAY } from "@/lib/store/rideStore";
+import { useRideStore } from "@/lib/store/rideStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useSettlementStore } from "@/lib/store/settlementStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import toast from "react-hot-toast";
+import { getRangeInterval, isDateInRange } from "@/lib/utils/date";
 import type { SalaryType } from "@/lib/types";
 
 type DateRange = "today" | "week" | "month" | "custom";
 
-const WEEK_START = (() => {
-  const d = new Date();
-  d.setDate(d.getDate() - 6);
-  return d.toISOString().slice(0, 10);
-})();
+
 
 const SALARY_TYPES: { id: SalaryType; label: string }[] = [
   { id: "fixed",      label: "Fixed Monthly" },
@@ -91,12 +88,14 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
 
   const vehicle = vehicles.find((v) => v.id === driver?.vehicleId);
 
+  const activeInterval = useMemo(() => {
+    return getRangeInterval(dateRange === "today" ? "today" : dateRange === "week" ? "week" : "month");
+  }, [dateRange]);
+
   const driverRides = useMemo(() => {
     const all = allRides.filter((r) => r.driverId === driverId);
-    if (dateRange === "today") return all.filter((r) => r.rideTime.startsWith(TODAY));
-    if (dateRange === "week")  return all.filter((r) => r.rideTime.slice(0, 10) >= WEEK_START);
-    return all;
-  }, [allRides, driverId, dateRange]);
+    return all.filter((r) => isDateInRange(r.rideTime, activeInterval));
+  }, [allRides, driverId, activeInterval]);
 
   const pendingExpenses = useMemo(
     () => expenses.filter((e) => e.loggedBy === driverId && e.status === "pending"),

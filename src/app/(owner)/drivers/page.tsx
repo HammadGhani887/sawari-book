@@ -8,7 +8,8 @@ import { ScreenHeader } from "@/components/ui";
 import { DriverCard } from "@/components/cards";
 import { useDriverStore } from "@/lib/store/driverStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
-import { useRideStore, TODAY } from "@/lib/store/rideStore";
+import { useRideStore } from "@/lib/store/rideStore";
+import { getRangeInterval, isDateInRange } from "@/lib/utils/date";
 
 export default function DriversPage() {
   const router   = useRouter();
@@ -16,9 +17,11 @@ export default function DriversPage() {
   const vehicles = useVehicleStore((s) => s.vehicles);
   const rides    = useRideStore((s) => s.rides);
 
+  const todayRange = useMemo(() => getRangeInterval("today"), []);
+
   const todayRides = useMemo(
-    () => rides.filter((r) => r.rideTime.startsWith(TODAY)),
-    [rides]
+    () => rides.filter((r) => isDateInRange(r.rideTime, todayRange)),
+    [rides, todayRange]
   );
 
   return (
@@ -26,6 +29,7 @@ export default function DriversPage() {
       <ScreenHeader
         title="My Drivers"
         titleUrdu="میرے ڈرائیور"
+        showRefresh={true}
         rightAction={
           <Link
             href="/drivers/add"

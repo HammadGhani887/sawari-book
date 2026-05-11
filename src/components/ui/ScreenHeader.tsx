@@ -6,12 +6,14 @@ import { ArrowLeft, Bell } from "lucide-react";
 import Link from "next/link";
 import { useNotificationStore } from "@/lib/store/notificationStore";
 import { useAuthStore } from "@/lib/store/authStore";
+import SyncHeaderAction from "@/components/layout/SyncHeaderAction";
 
 interface ScreenHeaderProps {
   title: string;
   titleUrdu?: string;
   showBack?: boolean;
   showNotifications?: boolean;
+  showRefresh?: boolean;
   rightAction?: ReactNode;
 }
 
@@ -20,6 +22,7 @@ export default function ScreenHeader({
   titleUrdu,
   showBack = false,
   showNotifications = false,
+  showRefresh = false,
   rightAction,
 }: ScreenHeaderProps) {
   const router = useRouter();
@@ -56,11 +59,10 @@ export default function ScreenHeader({
         )}
       </div>
 
-      {/* Right: action slot or notifications */}
-      <div className="w-10 flex justify-end">
-        {rightAction ? (
-          rightAction
-        ) : showNotifications ? (
+      {/* Right: action slot + notifications/sync */}
+      <div className="flex justify-end gap-2 pr-1">
+        {showRefresh && <SyncHeaderAction />}
+        {showNotifications && (
           <Link
             href={notifUrl}
             className="relative flex items-center justify-center w-9 h-9 rounded-full bg-brand-elevated text-slate-700 hover:text-slate-900 active:scale-95 transition-all"
@@ -72,7 +74,12 @@ export default function ScreenHeader({
               </span>
             )}
           </Link>
-        ) : null}
+        )}
+        {rightAction && (
+          <div className="flex items-center">
+            {rightAction}
+          </div>
+        )}
       </div>
     </header>
   );

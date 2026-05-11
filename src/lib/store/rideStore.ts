@@ -2,8 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Ride } from "@/lib/types";
 
-// Always use real today's date
-export const TODAY = new Date().toISOString().slice(0, 10);
+// Dynamic TODAY for backward compatibility (Dashboards now use dynamic ranges)
+export const TODAY = new Date().toLocaleDateString('en-CA'); // en-CA gives YYYY-MM-DD
 
 interface RideState {
   rides: Ride[];
@@ -44,8 +44,10 @@ export const useRideStore = create<RideState>()(
       getRidesByDate: (date) =>
         get().rides.filter((r) => r.rideTime.startsWith(date)),
 
-      getTodayRides: () =>
-        get().rides.filter((r) => r.rideTime.startsWith(TODAY)),
+      getTodayRides: () => {
+        const today = new Date().toISOString().slice(0, 10);
+        return get().rides.filter((r) => r.rideTime.startsWith(today));
+      },
     }),
     { name: "sawari-rides" }
   )

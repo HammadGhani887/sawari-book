@@ -3,12 +3,15 @@
 import { useMemo, useState } from "react";
 import { Card, ScreenHeader } from "@/components/ui";
 import { WeeklyBarChart } from "@/components/charts";
-import { useRideStore, TODAY } from "@/lib/store/rideStore";
+import { useRideStore } from "@/lib/store/rideStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { formatCurrency } from "@/lib/utils/format";
+import { getRangeInterval, isDateInRange, getTodayString } from "@/lib/utils/date";
+import api from "@/lib/services/api";
+import { useEffect } from "react";
 
 type Period = "today" | "week" | "month" | "year" | "custom";
 
@@ -21,19 +24,7 @@ const PLATFORM_COLORS: Record<string, string> = {
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function getRange(period: Period, customStart: string, customEnd: string): { start: string; end: string } {
-  const today = TODAY;
-  const d = new Date(today + "T00:00:00.000Z");
 
-  if (period === "today")  return { start: today, end: today };
-  if (period === "week") {
-    const s = new Date(d); s.setUTCDate(d.getUTCDate() - 6);
-    return { start: s.toISOString().slice(0, 10), end: today };
-  }
-  if (period === "month")  return { start: today.slice(0, 7) + "-01", end: today };
-  if (period === "year")   return { start: today.slice(0, 4) + "-01-01", end: today };
-  return { start: customStart || today.slice(0, 7) + "-01", end: customEnd || today };
-}
 
 function KPIBlock({ label, urdu, value, sub, color = "text-slate-900" }: {
   label: string; urdu?: string; value: string; sub?: string; color?: string;
@@ -56,28 +47,38 @@ export default function MyStatsPage() {
   const estimateFuel  = useVehicleStore((s) => s.estimateFuelCost);
   const getEffective  = useVehicleStore((s) => s.getEffectiveAverage);
 
-  const [period,      setPeriod]      = useState<Period>("month");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd,   setCustomEnd]   = useState("");
+  const [period,      setPeriod]      = useState<Period>("today");
+  const [customStart, setCustomStart] = useState(() => getTodayString());
+  const [customEnd,   setCustomEnd]   = useState(() => getTodayString());
 
-  const driverId   = driver?.id  ?? "";
   const vehicleId  = driver?.vehicleId ?? "";
   const effectiveAvg = getEffective(vehicleId, fuelLogs);
 
-  const { start, end } = getRange(period, customStart, customEnd);
+  const activeInterval = useMemo(() => getRangeInterval(period, { start: customStart, end: customEnd }), [period, customStart, customEnd]);
+
+  // Sync data on mount
+  useEffect(() => {
+    const sync = async () => {
+      try {
+        const res = await api.get("/rides");
+        if (res.data) useRideStore.setState({ rides: res.data });
+      } catch (e) { console.error(e); }
+    };
+    sync();
+  }, []);
 
   // Filter data to range
   const filteredRides = useMemo(
-    () => rides.filter((r) => r.driverId === driverId && r.rideTime.slice(0, 10) >= start && r.rideTime.slice(0, 10) <= end),
-    [rides, driverId, start, end]
+    () => rides.filter((r) => isDateInRange(r.rideTime, activeInterval)),
+    [rides, activeInterval]
   );
   const filteredFuel = useMemo(
-    () => fuelLogs.filter((f) => f.vehicleId === vehicleId && f.date.slice(0, 10) >= start && f.date.slice(0, 10) <= end),
-    [fuelLogs, vehicleId, start, end]
+    () => fuelLogs.filter((f) => f.vehicleId === vehicleId && isDateInRange(f.date, activeInterval)),
+    [fuelLogs, vehicleId, activeInterval]
   );
   const filteredExpenses = useMemo(
-    () => expenses.filter((e) => e.loggedBy === driverId && e.date.slice(0, 10) >= start && e.date.slice(0, 10) <= end),
-    [expenses, driverId, start, end]
+    () => expenses.filter((e) => isDateInRange(e.date, activeInterval)),
+    [expenses, activeInterval]
   );
 
   // Core metrics
@@ -101,10 +102,11 @@ export default function MyStatsPage() {
     ? rideEstFuel
     : estimatedFuelCost;
 
-  const netProfit = totalRevenue - fuelCostDisplay - totalExpenses;
+  const totalBoost        = filteredRides.reduce((s, r) => s + (Number(r.boostCost) || 0), 0);
+  const netProfit = totalRevenue - fuelCostDisplay - totalExpenses - totalBoost;
 
   // Days in range
-  const dayCount  = Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1);
+  const dayCount  = Math.max(1, Math.round((activeInterval.end.getTime() - activeInterval.start.getTime()) / 86400000) + 1);
   const avgPerDay = totalRevenue / dayCount;
 
   // Best single day
@@ -133,26 +135,28 @@ export default function MyStatsPage() {
     }
     if (period === "week" || period === "month" || period === "custom") {
       return Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(end + "T00:00:00.000Z");
-        d.setUTCDate(d.getUTCDate() - (6 - i));
-        const ds = d.toISOString().slice(0, 10);
+        const d = new Date(activeInterval.end);
+        d.setHours(0,0,0,0);
+        d.setDate(d.getDate() - (6 - i));
         const revenue = filteredRides
-          .filter((r) => r.rideTime.startsWith(ds))
+          .filter((r) => isDateInRange(r.rideTime, { start: d, end: new Date(d.getTime() + 86399999) }))
           .reduce((s, r) => s + r.fareAmount, 0);
-        return { day: WEEK_DAYS[d.getUTCDay()], revenue };
+        return { day: WEEK_DAYS[d.getDay()], revenue };
       });
     }
     // year — last 7 months
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(end + "T00:00:00.000Z");
-      d.setUTCMonth(d.getUTCMonth() - (6 - i));
-      const prefix = d.toISOString().slice(0, 7);
+      const d = new Date(activeInterval.end);
+      d.setHours(0,0,0,0);
+      d.setMonth(d.getMonth() - (6 - i));
+      const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+      const monthEnd   = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
       const revenue = filteredRides
-        .filter((r) => r.rideTime.startsWith(prefix))
+        .filter((r) => isDateInRange(r.rideTime, { start: monthStart, end: monthEnd }))
         .reduce((s, r) => s + r.fareAmount, 0);
-      return { day: d.toLocaleString("en-PK", { month: "short", timeZone: "UTC" }), revenue };
+      return { day: d.toLocaleString("en-PK", { month: "short" }), revenue };
     });
-  }, [filteredRides, period, end, totalRevenue]);
+  }, [filteredRides, period, activeInterval.end, totalRevenue]);
 
   const TABS: { key: Period; label: string; urdu: string }[] = [
     { key: "today",  label: "Today",  urdu: "آج"     },
@@ -164,7 +168,7 @@ export default function MyStatsPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <ScreenHeader title="My Stats" titleUrdu="میری رپورٹ" />
+      <ScreenHeader title="My Stats" titleUrdu="میری رپورٹ" showRefresh={true} />
 
       <div className="flex flex-col gap-4 px-4 pt-4 pb-8">
 
@@ -196,7 +200,7 @@ export default function MyStatsPage() {
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                max={TODAY}
+                max={getTodayString()}
                 className="w-full bg-brand-surface border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent-blue"
               />
             </div>
@@ -206,7 +210,7 @@ export default function MyStatsPage() {
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                max={TODAY}
+                max={getTodayString()}
                 className="w-full bg-brand-surface border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent-blue"
               />
             </div>

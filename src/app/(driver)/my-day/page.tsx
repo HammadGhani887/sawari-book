@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { getRangeInterval, isDateInRange } from "@/lib/utils/date";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, ScreenHeader } from "@/components/ui";
 import { useRideStore } from "@/lib/store/rideStore";
@@ -9,6 +10,7 @@ import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
 import { formatCurrency } from "@/lib/utils/format";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
+import api from "@/lib/services/api";
 
 const PLATFORM_LABELS: Record<string, string> = {
   indrive: "inDrive", yango: "Yango", other: "Other", private: "Private",
@@ -67,10 +69,34 @@ export default function MyDayPage() {
 
   const [selectedDate, setSelectedDate] = useState(() => new Date());
 
-  const todayStr    = new Date().toISOString().slice(0, 10);
-  const dateStr     = selectedDate.toISOString().slice(0, 10);
-  const isToday     = dateStr === todayStr;
-  const driverId    = driver?.id ?? "";
+  const dateStr = useMemo(() => {
+    const y = selectedDate.getFullYear();
+    const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
+    const d = String(selectedDate.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }, [selectedDate]);
+
+  const activeInterval = useMemo(() => getRangeInterval("custom", { start: dateStr, end: dateStr }), [dateStr]);
+  
+  // Sync data on mount
+  useEffect(() => {
+    const sync = async () => {
+      try {
+        const res = await api.get("/rides");
+        if (res.data) useRideStore.setState({ rides: res.data });
+      } catch (e) { console.error(e); }
+    };
+    sync();
+  }, []);
+
+  const isToday = useMemo(() => {
+    const today = new Date();
+    return selectedDate.getDate() === today.getDate() &&
+           selectedDate.getMonth() === today.getMonth() &&
+           selectedDate.getFullYear() === today.getFullYear();
+  }, [selectedDate]);
+
+
   const vehicleId   = driver?.vehicleId ?? "";
 
   function prevDay() {
@@ -81,9 +107,9 @@ export default function MyDayPage() {
     setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
   }
 
-  const dayRides    = useMemo(() => rides.filter((r)    => r.driverId === driverId   && r.rideTime.startsWith(dateStr)), [rides, driverId, dateStr]);
-  const dayFuel     = useMemo(() => fuelLogs.filter((f) => f.vehicleId === vehicleId && f.date.startsWith(dateStr)),     [fuelLogs, vehicleId, dateStr]);
-  const dayExpenses = useMemo(() => expenses.filter((e) => e.loggedBy === driverId   && e.date.startsWith(dateStr)),     [expenses, driverId, dateStr]);
+  const dayRides    = useMemo(() => rides.filter((r)    => isDateInRange(r.rideTime, activeInterval)), [rides, activeInterval]);
+  const dayFuel     = useMemo(() => fuelLogs.filter((f) => f.vehicleId === vehicleId && isDateInRange(f.date, activeInterval)),     [fuelLogs, vehicleId, activeInterval]);
+  const dayExpenses = useMemo(() => expenses.filter((e) => isDateInRange(e.date, activeInterval)),     [expenses, activeInterval]);
 
   const dayEntries = useMemo((): DayEntry[] => {
     const rideEntries: DayEntry[] = dayRides.map((r) => {
@@ -138,8 +164,9 @@ export default function MyDayPage() {
   const estFuelRides    = dayRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
   const totalFuelCost   = actualFuelLogs > 0 ? actualFuelLogs : fuelExpenses > 0 ? fuelExpenses : estFuelRides;
   const fuelLabel       = actualFuelLogs > 0 ? "actual" : fuelExpenses > 0 ? "expense" : estFuelRides > 0 ? "est." : null;
-  const otherExpenses   = dayExpenses.filter((e) => e.category !== "fuel").reduce((s, e) => s + e.amount, 0);
-  const netEarnings     = totalRevenue - totalFuelCost - otherExpenses;
+  const totalBoost    = dayRides.reduce((s, r) => s + (r.boostCost ?? 0), 0);
+  const otherExpenses = dayExpenses.filter((e) => e.category !== "fuel").reduce((s, e) => s + e.amount, 0);
+  const netEarnings   = totalRevenue - totalFuelCost - otherExpenses - totalBoost;
 
   // Distance & efficiency (only if rides have distanceKm)
   const totalKm      = dayRides.reduce((s, r) => s + (r.distanceKm ?? 0), 0);
@@ -153,7 +180,7 @@ export default function MyDayPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <ScreenHeader title="My Day" titleUrdu="میرا دن" />
+      <ScreenHeader title="My Day" titleUrdu="میرا دن" showRefresh={true} />
 
       {/* Date navigator */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200/30 bg-brand-bg/80 backdrop-blur-sm sticky top-14 z-30">
@@ -181,6 +208,12 @@ export default function MyDayPage() {
               <>
                 <span className="text-slate-500"> · </span>
                 <span className="text-status-amber font-medium">{formatCurrency(totalFuelCost)} fuel{fuelLabel ? ` (${fuelLabel})` : ""}</span>
+              </>
+            )}
+            {totalBoost > 0 && (
+              <>
+                <span className="text-slate-500"> · </span>
+                <span className="text-status-red font-medium">{formatCurrency(totalBoost)} boost</span>
               </>
             )}
             {otherExpenses > 0 && (
@@ -258,7 +291,7 @@ export default function MyDayPage() {
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Net Profit</span>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                {formatCurrency(totalRevenue)} − {formatCurrency(totalFuelCost)} fuel{fuelLabel ? ` (${fuelLabel})` : ""}{otherExpenses > 0 ? ` − ${formatCurrency(otherExpenses)} exp` : ""}
+                {formatCurrency(totalRevenue)} − {formatCurrency(totalFuelCost)} fuel{totalBoost > 0 ? ` − ${formatCurrency(totalBoost)} boost` : ""}{otherExpenses > 0 ? ` − ${formatCurrency(otherExpenses)} exp` : ""}
               </p>
             </div>
             <p className={`text-xl font-bold tabular-nums ${netEarnings >= 0 ? "text-accent-green" : "text-status-red"}`}>

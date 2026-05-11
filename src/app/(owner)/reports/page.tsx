@@ -13,6 +13,7 @@ import { useDriverStore } from "@/lib/store/driverStore";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import { formatCurrency } from "@/lib/utils/format";
 import { exportToPDF } from "@/lib/utils/pdfExport";
+import { getRangeInterval, isDateInRange } from "@/lib/utils/date";
 
 type DateRange = "today" | "week" | "month" | "custom";
 
@@ -23,11 +24,7 @@ const LAST_MONTH = (() => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 })();
 const TODAY = NOW.toISOString().slice(0, 10);
-const WEEK_START = (() => {
-  const d = new Date(NOW);
-  d.setDate(d.getDate() - 6);
-  return d.toISOString().slice(0, 10);
-})();
+
 
 const RANGE_TABS: { id: DateRange; label: string }[] = [
   { id: "today",  label: "Today"  },
@@ -77,44 +74,35 @@ export default function ReportsPage() {
   const [customEnd,   setCustomEnd]   = useState(TODAY);
 
   // Compute effective date range
-  const { rangeStart, rangeEnd, isSingleDay } = useMemo(() => {
-    if (dateRange === "today")  return { rangeStart: TODAY,      rangeEnd: TODAY,      isSingleDay: true  };
-    if (dateRange === "week")   return { rangeStart: WEEK_START, rangeEnd: TODAY,      isSingleDay: false };
-    if (dateRange === "month")  return { rangeStart: THIS_MONTH + "-01", rangeEnd: TODAY, isSingleDay: false };
-    // custom
-    const start = customStart || TODAY;
-    const end   = customEnd   || TODAY;
-    return { rangeStart: start, rangeEnd: end, isSingleDay: start === end };
+  const activeInterval = useMemo(() => {
+    return getRangeInterval(dateRange, dateRange === "custom" ? { start: customStart, end: customEnd } : undefined);
+  }, [dateRange, customStart, customEnd]);
+
+  const isSingleDay = useMemo(() => {
+    if (dateRange === "today") return true;
+    if (dateRange === "custom" && customStart === customEnd) return true;
+    return false;
   }, [dateRange, customStart, customEnd]);
 
   // Filter rides
   const filteredRides = useMemo(() => {
     const base = vehicleId === "all" ? rides : rides.filter((r) => r.vehicleId === vehicleId);
-    return base.filter((r) => {
-      const d = r.rideTime.slice(0, 10);
-      return d >= rangeStart && d <= rangeEnd;
-    });
-  }, [rides, vehicleId, rangeStart, rangeEnd]);
+    return base.filter((r) => isDateInRange(r.rideTime, activeInterval));
+  }, [rides, vehicleId, activeInterval]);
 
   // Filter approved expenses
   const filteredExpenses = useMemo(() => {
     const base = vehicleId === "all" ? expenses : expenses.filter((e) => e.vehicleId === vehicleId);
     return base
       .filter((e) => e.status === "approved")
-      .filter((e) => {
-        const d = e.date.slice(0, 10);
-        return d >= rangeStart && d <= rangeEnd;
-      });
-  }, [expenses, vehicleId, rangeStart, rangeEnd]);
+      .filter((e) => isDateInRange(e.date, activeInterval));
+  }, [expenses, vehicleId, activeInterval]);
 
   // Filter fuel logs
   const filteredFuel = useMemo(() => {
     const base = vehicleId === "all" ? fuelLogs : fuelLogs.filter((f) => f.vehicleId === vehicleId);
-    return base.filter((f) => {
-      const d = f.date.slice(0, 10);
-      return d >= rangeStart && d <= rangeEnd;
-    });
-  }, [fuelLogs, vehicleId, rangeStart, rangeEnd]);
+    return base.filter((f) => isDateInRange(f.date, activeInterval));
+  }, [fuelLogs, vehicleId, activeInterval]);
 
   // KPIs
   const totalRevenue  = filteredRides.reduce((s, r) => s + r.fareAmount, 0);
@@ -133,19 +121,21 @@ export default function ReportsPage() {
   const dailyRevenue = useMemo(() => {
     const byDay: Record<string, number> = {};
     filteredRides.forEach((r) => {
-      const day = r.rideTime.slice(0, 10);
+      // Use local date for chart grouping
+      const day = new Date(r.rideTime).toLocaleDateString('en-CA');
       byDay[day] = (byDay[day] ?? 0) + r.fareAmount;
     });
+    
     // Generate days in range
     const days: { day: string; revenue: number }[] = [];
-    const start = new Date(rangeStart + "T00:00:00");
-    const end   = new Date(rangeEnd   + "T00:00:00");
+    const start = activeInterval.start;
+    const end   = activeInterval.end;
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const key = d.toISOString().slice(0, 10);
+      const key = d.toLocaleDateString('en-CA');
       days.push({ day: String(d.getDate()), revenue: byDay[key] ?? 0 });
     }
     return days.slice(-30); // max 30 days
-  }, [filteredRides, rangeStart, rangeEnd]);
+  }, [filteredRides, activeInterval]);
 
   // Expense breakdown
   const expenseBreakdown = useMemo(() => {
@@ -225,7 +215,7 @@ export default function ReportsPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <ScreenHeader title="Reports" titleUrdu="رپورٹس" />
+      <ScreenHeader title="Reports" titleUrdu="رپورٹس" showRefresh={true} />
 
       <div className="flex flex-col gap-4 px-4 pt-4 pb-6">
 
@@ -328,7 +318,7 @@ export default function ReportsPage() {
             {isSingleDay && singleDayRides.length > 0 && (
               <Card>
                 <p className="text-sm font-semibold text-slate-900 mb-3">
-                  Rides on {new Date(rangeStart + "T00:00:00").toLocaleDateString("en-PK", { weekday: "long", day: "numeric", month: "short" })}
+                  Rides on {activeInterval.start.toLocaleDateString("en-PK", { weekday: "long", day: "numeric", month: "short" })}
                 </p>
                 <div className="flex flex-col gap-2">
                   {singleDayRides.map((r) => {

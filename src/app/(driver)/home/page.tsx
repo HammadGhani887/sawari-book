@@ -1,17 +1,20 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { useAuthStore } from "@/lib/store/authStore";
-import { useRideStore, TODAY } from "@/lib/store/rideStore";
+import { useRideStore } from "@/lib/store/rideStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
 import { formatCurrency, getGreeting } from "@/lib/utils/format";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
-import { ScreenHeader } from "@/components/ui";
+import { ScreenHeader, DateRangeFilter } from "@/components/ui";
+import { getRangeInterval, isDateInRange, DateRangeType, getTodayString } from "@/lib/utils/date";
+import { exportToPDF, exportToExcel, ExportData } from "@/lib/utils/export";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
+import api from "@/lib/services/api";
 
 function MiniKPI({ icon, value, label, colorClass = "text-slate-900", sub }: {
   icon: string; value: string; label: string; colorClass?: string; sub?: string;
@@ -37,6 +40,7 @@ interface LogEntry {
   amount: string;
   profit: string | null;
   dotColor: string;
+  sortKey: string;
 }
 
 function TimelineEntry({ entry, isLast }: { entry: LogEntry; isLast: boolean }) {
@@ -109,7 +113,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 };
 
 export default function DriverHomePage() {
-  const { user }  = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const driver    = useCurrentDriver();
   const vehicles  = useVehicleStore((s) => s.vehicles);
   const rides     = useRideStore((s) => s.rides);
@@ -123,35 +127,85 @@ export default function DriverHomePage() {
   const vehicleId    = driver?.vehicleId ?? "";
   const dailyTarget  = driver?.dailyTargetPkr ?? 0;
 
-  const todayRides = useMemo(
-    () => rides.filter((r) => r.driverId === userId && r.rideTime.startsWith(TODAY)),
-    [rides, userId]
+  const [rangeType, setRangeType] = useState<DateRangeType>("today");
+  const [customRange, setCustomRange] = useState(() => {
+    const today = getTodayString();
+    return { start: today, end: today };
+  });
+
+  // Sync data on mount
+  useEffect(() => {
+    const sync = async () => {
+      try {
+        const res = await api.get("/rides");
+        if (res.data) useRideStore.setState({ rides: res.data });
+      } catch (e) { console.error(e); }
+    };
+    sync();
+  }, []);
+
+  const activeInterval = useMemo(() => getRangeInterval(rangeType, customRange), [rangeType, customRange]);
+
+  const filteredRides = useMemo(
+    () => rides.filter((r) => isDateInRange(r.rideTime, activeInterval)),
+    [rides, activeInterval]
   );
-  const todayFuel = useMemo(
-    () => fuelLogs.filter((f) => f.vehicleId === vehicleId && f.date.startsWith(TODAY)),
-    [fuelLogs, vehicleId]
+  
+  const filteredFuel = useMemo(
+    () => fuelLogs.filter((f) => f.vehicleId === vehicleId && isDateInRange(f.date, activeInterval)),
+    [fuelLogs, vehicleId, activeInterval]
   );
-  const todayApprovedExpenses = useMemo(
-    () => expenses.filter((e) => e.loggedBy === userId && e.date.startsWith(TODAY) && e.status === "approved"),
-    [expenses, userId]
+ 
+  const filteredExpenses = useMemo(
+    () => expenses.filter((e) => isDateInRange(e.date, activeInterval)),
+    [expenses, activeInterval]
   );
 
-  const todayRevenue  = todayRides.reduce((s, r) => s + r.fareAmount, 0);
-  const todayFuelCost = todayFuel.reduce((s, f) => s + f.amountPkr, 0);
-  const todayExpCost  = todayApprovedExpenses.reduce((s, e) => s + e.amount, 0);
+  const approvedExpenses = useMemo(
+    () => filteredExpenses.filter((e) => e.status === "approved"),
+    [filteredExpenses]
+  );
 
-  const estimatedFuelFromRides = todayRides.reduce((s, r) => s + (r.estimatedFuelCost ?? 0), 0);
-  const totalBoostCost         = todayRides.reduce((s, r) => s + (r.boostCost ?? 0), 0);
+  const handleExport = (format: "pdf" | "excel") => {
+    const rangeLabel = rangeType === "custom" 
+      ? `${customRange.start} to ${customRange.end}` 
+      : rangeType.charAt(0).toUpperCase() + rangeType.slice(1);
+
+    const exportData: ExportData = {
+      title: "Driver Performance Report",
+      subtitle: `Driver: ${user?.name} | Period: ${rangeLabel}`,
+      filename: `Swaari_Driver_Report_${rangeType}`,
+      headers: ["Date", "Description", "Type", "Amount (PKR)", "Net (PKR)"],
+      rows: logEntries.map(entry => [
+        entry.time,
+        entry.description,
+        entry.icon === "🚗" ? "Ride" : entry.icon === "⛽" ? "Fuel" : "Expense",
+        entry.amount,
+        entry.profit || "—"
+      ])
+    };
+
+    if (format === "pdf") exportToPDF(exportData);
+    else exportToExcel(exportData);
+  };
+
+  const todayRevenue  = filteredRides.reduce((s, r) => s + (Number(r.fareAmount) || 0), 0);
+  const todayFuelCost = filteredFuel.reduce((s, f) => s + (Number(f.amountPkr) || 0), 0);
+  const todayExpCost  = approvedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+ 
+  const estimatedFuelFromRides = filteredRides.reduce((s, r) => s + (Number(r.estimatedFuelCost) || 0), 0);
+  const totalBoostCost         = filteredRides.reduce((s, r) => s + (Number(r.boostCost) || 0), 0);
   const fuelDeduction  = todayFuelCost > 0 ? todayFuelCost : estimatedFuelFromRides;
   const todayNetProfit = todayRevenue - fuelDeduction - todayExpCost - totalBoostCost;
   const fuelSource     = todayFuelCost > 0 ? "actual" : estimatedFuelFromRides > 0 ? "est." : null;
 
   const logEntries = useMemo((): LogEntry[] => {
-    const rideEntries: LogEntry[] = todayRides.map((r) => {
+    const rideEntries: LogEntry[] = filteredRides.map((r) => {
       const hasProfit = r.estimatedFuelCost !== undefined || r.boostCost !== undefined;
       const profit    = hasProfit ? r.fareAmount - (r.estimatedFuelCost ?? 0) - (r.boostCost ?? 0) : null;
       return {
         key:         r.id,
+        sortKey:     r.rideTime,
         time:        new Date(r.rideTime).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
         icon:        "🚗",
         description: `${PLATFORM_LABELS[r.platform] ?? r.platform}${r.distanceKm ? ` · ${r.distanceKm}km` : ""}${r.boostCost ? ` · 🚀Rs${r.boostCost}` : ""}`,
@@ -162,8 +216,9 @@ export default function DriverHomePage() {
       };
     });
 
-    const fuelEntries: LogEntry[] = todayFuel.map((f) => ({
+    const fuelEntries: LogEntry[] = filteredFuel.map((f) => ({
       key:         f.id,
+      sortKey:     f.date,
       time:        new Date(f.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
       icon:        "⛽",
       description: `Fuel · ${f.pumpName ?? ""}`,
@@ -173,22 +228,21 @@ export default function DriverHomePage() {
       dotColor:    "#F59E0B",
     }));
 
-    const expenseEntries: LogEntry[] = expenses
-      .filter((e) => e.loggedBy === userId && e.date.startsWith(TODAY))
-      .map((e) => ({
-        key:         e.id,
-        time:        new Date(e.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
-        icon:        "🧾",
-        description: EXPENSE_CATEGORIES.find((c) => c.id === e.category)?.name ?? e.category,
-        sub:         e.status === "pending" ? "Pending approval" : "Approved",
-        amount:      `− ${formatCurrency(e.amount)}`,
-        profit:      null,
-        dotColor:    e.status === "pending" ? "#64748B" : "#F59E0B",
-      }));
+    const expenseEntries: LogEntry[] = filteredExpenses.map((e) => ({
+      key:         e.id,
+      sortKey:     e.date,
+      time:        new Date(e.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
+      icon:        "🧾",
+      description: EXPENSE_CATEGORIES.find((c) => c.id === e.category)?.name ?? e.category,
+      sub:         e.status === "pending" ? "Pending approval" : "Approved",
+      amount:      `− ${formatCurrency(e.amount)}`,
+      profit:      null,
+      dotColor:    e.status === "pending" ? "#64748B" : "#F59E0B",
+    }));
 
     return [...rideEntries, ...fuelEntries, ...expenseEntries]
-      .sort((a, b) => b.time.localeCompare(a.time));
-  }, [todayRides, todayFuel, expenses, userId]);
+      .sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  }, [filteredRides, filteredFuel, filteredExpenses]);
 
   return (
     <div className="px-4 pt-4 pb-4 flex flex-col gap-5">
@@ -196,7 +250,38 @@ export default function DriverHomePage() {
         title={`${getGreeting()}, ${firstName}`}
         titleUrdu={vehicleLabel}
         showNotifications
+        showRefresh={true}
       />
+
+      <DateRangeFilter
+        selected={rangeType}
+        onChange={setRangeType}
+        customRange={customRange}
+        onCustomChange={setCustomRange}
+        accentColor="blue"
+      />
+
+      {/* ── Export Section ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+        <div>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reports</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Export logs for this period</p>
+        </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => handleExport("pdf")}
+            className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+          >
+            PDF
+          </button>
+          <button 
+            onClick={() => handleExport("excel")}
+            className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+          >
+            Excel
+          </button>
+        </div>
+      </div>
 
       {/* Daily target progress — only if target is set */}
       {dailyTarget > 0 && (
@@ -219,7 +304,7 @@ export default function DriverHomePage() {
 
       {/* KPI grid */}
       <div className="grid grid-cols-2 gap-3">
-        <MiniKPI icon="🚗" value={String(todayRides.length)} label="Rides" />
+        <MiniKPI icon="🚗" value={String(filteredRides.length)} label="Rides" />
         <MiniKPI icon="💰" value={formatCurrency(todayRevenue)} label="Revenue" colorClass="text-accent-blue" />
         <MiniKPI
           icon="⛽"
@@ -316,7 +401,7 @@ export default function DriverHomePage() {
       </div>
 
       {/* Daily summary */}
-      {todayRides.length > 0 && (
+      {filteredRides.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Today&apos;s Summary</p>
           <div className="flex items-center justify-between text-sm">
