@@ -1,19 +1,37 @@
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 
-// VAPID keys should be in .env in production
-const vapidKeys = {
-  publicKey:  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BMY945ngvLEE-ks729gQiPDxIFCo1YYK1ciPnw8cpRUQBYnGq6CJHofh4T_ffHDhkwWzEHkHMvoD0CXi4R9A5cE",
-  privateKey: process.env.VAPID_PRIVATE_KEY || "zPWtr-MddgXbkt7t18BjaspXOPM90zDApl5fRa6JoJ4",
-};
+let isPushConfigured = false;
 
-webpush.setVapidDetails(
-  "mailto:hammadghani887@gmail.com",
-  vapidKeys.publicKey,
-  vapidKeys.privateKey
-);
+function ensurePushConfigured() {
+  if (isPushConfigured) return true;
+
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+  const contactEmail = process.env.VAPID_CONTACT_EMAIL;
+
+  if (!publicKey || !privateKey || !contactEmail) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "Missing required push env vars. Set NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_CONTACT_EMAIL."
+      );
+    }
+
+    console.warn(
+      "Push notifications are disabled in development. Set NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_CONTACT_EMAIL to enable."
+    );
+    return false;
+  }
+
+  const subject = contactEmail.startsWith("mailto:") ? contactEmail : `mailto:${contactEmail}`;
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  isPushConfigured = true;
+  return true;
+}
 
 export async function sendPushNotification(userId: string, payload: { title: string; body: string; url?: string }) {
+  if (!ensurePushConfigured()) return;
+
   const subscriptions = await prisma.pushSubscription.findMany({
     where: { userId },
   });

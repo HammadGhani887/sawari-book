@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useAuthStore } from "@/lib/store/authStore";
 import api from "@/lib/services/api";
 
-const VAPID_PUBLIC_KEY = "BMY945ngvLEE-ks729gQiPDxIFCo1YYK1ciPnw8cpRUQBYnGq6CJHofh4T_ffHDhkwWzEHkHMvoD0CXi4R9A5cE";
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -25,6 +25,15 @@ export function usePushNotifications() {
 
     async function subscribe() {
       try {
+        if (!VAPID_PUBLIC_KEY) {
+          if (process.env.NODE_ENV === "production") {
+            console.error("Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY. Push notifications are disabled.");
+          } else {
+            console.warn("NEXT_PUBLIC_VAPID_PUBLIC_KEY not set. Skipping push setup in development.");
+          }
+          return;
+        }
+
         if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
           console.warn("Push notifications not supported");
           return;

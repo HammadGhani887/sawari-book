@@ -61,29 +61,88 @@ export async function POST(req: NextRequest) {
   if (!body?.vehicleId || !body?.category || !body?.amount) {
     return badRequest("vehicleId, category, and amount are required");
   }
+  const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
 
   // Owner-created expenses are auto-approved; driver-submitted are pending
   const status = auth.role === "owner" ? "APPROVED" : "PENDING";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let expense: any;
+  let replayed = false;
 
-  const expense = await prisma.expense.create({
-    data: {
-      vehicleId:  body.vehicleId,
-      loggedBy:   auth.userId,
-      category:   body.category.toUpperCase(),
-      amount:     Number(body.amount),
-      note:       body.note       ?? null,
-      receiptUrl: body.receiptUrl ?? null,
-      status,
-      date:       body.date ? new Date(body.date) : new Date(),
-    },
-    include: {
-      vehicle: true,
-      logger: true,
-    }
-  });
+  if (idempotencyKey) {
+    const scope = "expense_create";
+    const txResult = await prisma.$transaction(async (tx: any) => {
+      const existing = await tx.idempotencyKey.findUnique({
+        where: {
+          userId_scope_key: {
+            userId: auth.userId,
+            scope,
+            key: idempotencyKey,
+          },
+        },
+      });
+
+      if (existing?.resourceId) {
+        const existingExpense = await tx.expense.findUnique({
+          where: { id: existing.resourceId },
+          include: { vehicle: true, logger: true },
+        });
+        if (existingExpense) {
+          return { expense: existingExpense, replayed: true };
+        }
+      }
+
+      const createdExpense = await tx.expense.create({
+        data: {
+          vehicleId: body.vehicleId,
+          loggedBy: auth.userId,
+          category: body.category.toUpperCase(),
+          amount: Number(body.amount),
+          note: body.note ?? null,
+          receiptUrl: body.receiptUrl ?? null,
+          status,
+          date: body.date ? new Date(body.date) : new Date(),
+        },
+        include: {
+          vehicle: true,
+          logger: true,
+        },
+      });
+
+      await tx.idempotencyKey.create({
+        data: {
+          userId: auth.userId,
+          scope,
+          key: idempotencyKey,
+          resourceId: createdExpense.id,
+        },
+      });
+
+      return { expense: createdExpense, replayed: false };
+    });
+    expense = txResult.expense;
+    replayed = txResult.replayed;
+  } else {
+    expense = await prisma.expense.create({
+      data: {
+        vehicleId:  body.vehicleId,
+        loggedBy:   auth.userId,
+        category:   body.category.toUpperCase(),
+        amount:     Number(body.amount),
+        note:       body.note       ?? null,
+        receiptUrl: body.receiptUrl ?? null,
+        status,
+        date:       body.date ? new Date(body.date) : new Date(),
+      },
+      include: {
+        vehicle: true,
+        logger: true,
+      }
+    });
+  }
 
   // Notify owner if driver submitted
-  if (auth.role === "driver") {
+  if (auth.role === "driver" && !replayed) {
     try {
       const title = "Expense for Approval";
       const body = `${expense.logger.name} reported ₨${Number(expense.amount).toLocaleString()} for ${expense.category.toLowerCase()}`;
@@ -114,5 +173,6 @@ export async function POST(req: NextRequest) {
     receiptUrl: expense.receiptUrl,
     status:     expense.status.toLowerCase(),
     date:       expense.date.toISOString(),
-  }, { status: 201 });
+    idempotentReplay: replayed,
+  }, { status: replayed ? 200 : 201 });
 }

@@ -3,7 +3,19 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "sawari-book-secret";
+const DEV_FALLBACK_JWT_SECRET = "dev-only-insecure-jwt-secret";
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Missing required environment variable: JWT_SECRET");
+  }
+
+  console.warn("JWT_SECRET is not set. Using an insecure development fallback secret.");
+  return DEV_FALLBACK_JWT_SECRET;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     const token = jwt.sign(
       { userId: user.id, role: user.role.toLowerCase() },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: "30d" }
     );
 
