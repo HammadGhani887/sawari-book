@@ -23,7 +23,7 @@ function MobileSplash() {
   }, [isAuthenticated, user, router]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 gap-6">
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-slate-950 gap-6">
       <div className="w-28 h-28 rounded-[2rem] overflow-hidden animate-scaleIn shadow-2xl border border-white/10 bg-white p-1">
         <Image 
           src="/sawari-app.png" 

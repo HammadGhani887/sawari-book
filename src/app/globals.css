@@ -20,6 +20,10 @@
     color: #0F172A;
     font-family: var(--font-inter);
     overscroll-behavior: none;
+    width: 100%;
+    overflow-x: hidden;
+    position: relative;
+    min-height: 100dvh;
   }
 
   /* Scrollbar */

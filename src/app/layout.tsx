@@ -30,6 +30,7 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Sawari Book",
+    startupImage: "/sawari-app.png",
   },
   openGraph: {
     title: "Sawari Book — Track Every Ride",
@@ -52,6 +53,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: "#0F172A",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
