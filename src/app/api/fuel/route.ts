@@ -56,18 +56,70 @@ export async function POST(req: NextRequest) {
   if (!body?.vehicleId || !body?.amountPkr || !body?.litres) {
     return badRequest("vehicleId, amountPkr, and litres are required");
   }
+  const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
 
-  const log = await prisma.fuelLog.create({
-    data: {
-      vehicleId: body.vehicleId,
-      driverId:  auth.userId,
-      amountPkr: Number(body.amountPkr),
-      litres:    Number(body.litres),
-      odometer:  body.odometer ? Number(body.odometer) : null,
-      pumpName:  body.pumpName ?? null,
-      date:      body.date ? new Date(body.date) : new Date(),
-    },
-  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let log: any;
+  let replayed = false;
+
+  if (idempotencyKey) {
+    const scope = "fuel_create";
+    const txResult = await prisma.$transaction(async (tx: any) => {
+      const existing = await tx.idempotencyKey.findUnique({
+        where: {
+          userId_scope_key: {
+            userId: auth.userId,
+            scope,
+            key: idempotencyKey,
+          },
+        },
+      });
+
+      if (existing?.resourceId) {
+        const existingLog = await tx.fuelLog.findUnique({ where: { id: existing.resourceId } });
+        if (existingLog) {
+          return { log: existingLog, replayed: true };
+        }
+      }
+
+      const createdLog = await tx.fuelLog.create({
+        data: {
+          vehicleId: body.vehicleId,
+          driverId: auth.userId,
+          amountPkr: Number(body.amountPkr),
+          litres: Number(body.litres),
+          odometer: body.odometer ? Number(body.odometer) : null,
+          pumpName: body.pumpName ?? null,
+          date: body.date ? new Date(body.date) : new Date(),
+        },
+      });
+
+      await tx.idempotencyKey.create({
+        data: {
+          userId: auth.userId,
+          scope,
+          key: idempotencyKey,
+          resourceId: createdLog.id,
+        },
+      });
+
+      return { log: createdLog, replayed: false };
+    });
+    log = txResult.log;
+    replayed = txResult.replayed;
+  } else {
+    log = await prisma.fuelLog.create({
+      data: {
+        vehicleId: body.vehicleId,
+        driverId: auth.userId,
+        amountPkr: Number(body.amountPkr),
+        litres: Number(body.litres),
+        odometer: body.odometer ? Number(body.odometer) : null,
+        pumpName: body.pumpName ?? null,
+        date: body.date ? new Date(body.date) : new Date(),
+      },
+    });
+  }
 
   return NextResponse.json({
     id:        log.id,
@@ -78,5 +130,6 @@ export async function POST(req: NextRequest) {
     odometer:  log.odometer,
     pumpName:  log.pumpName,
     date:      log.date.toISOString(),
-  }, { status: 201 });
+    idempotentReplay: replayed,
+  }, { status: replayed ? 200 : 201 });
 }

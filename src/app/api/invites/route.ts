@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { unauthorized, badRequest } from "@/app/api/_lib/auth";
-import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET ?? "sawari-book-secret";
+import { verifyAuth, unauthorized, badRequest } from "@/app/api/_lib/auth";
 
 function generateToken(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -16,21 +13,12 @@ function generateToken(): string {
 
 // POST /api/invites — owner creates an invite for a vehicle
 export async function POST(req: NextRequest) {
-  // Verify JWT from Authorization header
-  const header = req.headers.get("authorization") ?? "";
-  if (!header.startsWith("Bearer ")) return unauthorized();
-  const rawToken = header.slice(7).trim();
-
-  let userId: string;
-  try {
-    const decoded = jwt.verify(rawToken, JWT_SECRET) as { userId: string; role: string };
-    if (decoded.role !== "owner") {
-      return NextResponse.json({ error: "Only owners can create invites" }, { status: 403 });
-    }
-    userId = decoded.userId;
-  } catch {
-    return unauthorized();
+  const auth = verifyAuth(req);
+  if (!auth) return unauthorized();
+  if (auth.role !== "owner") {
+    return NextResponse.json({ error: "Only owners can create invites" }, { status: 403 });
   }
+  const userId = auth.userId;
 
   const body = await req.json().catch(() => null);
   if (!body?.vehicleId) return badRequest("vehicleId is required");

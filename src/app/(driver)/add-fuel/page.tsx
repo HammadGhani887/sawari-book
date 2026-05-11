@@ -11,6 +11,7 @@ import { useVehicleStore } from "@/lib/store/vehicleStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import { saveFuelOffline } from "@/hooks/useOfflineQueue";
 import api from "@/lib/services/api";
+import { createIdempotencyKey } from "@/lib/utils/idempotency";
 
 export default function AddFuelPage() {
   const router   = useRouter();
@@ -76,9 +77,10 @@ export default function AddFuelPage() {
       receiptUrl: receiptPreview ?? undefined,
       date:       new Date().toISOString(),
     };
+    const idempotencyKey = createIdempotencyKey("fuel");
 
     if (!navigator.onLine) {
-      saveFuelOffline(fuelData);
+      saveFuelOffline(fuelData, idempotencyKey);
       toast("Fuel saved offline. Will sync when connected.", {
         icon: "📶",
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
@@ -88,6 +90,7 @@ export default function AddFuelPage() {
       let savedToDb = false;
       try {
         await api.post("/fuel", {
+          idempotencyKey,
           vehicleId: fuelData.vehicleId,
           amountPkr: fuelData.amountPkr,
           litres:    fuelData.litres,
@@ -98,6 +101,7 @@ export default function AddFuelPage() {
         savedToDb = true;
       } catch {
         // API failed — fall back to local store only
+        saveFuelOffline(fuelData, idempotencyKey);
       }
 
       // Update local store for instant UI (only once)

@@ -70,46 +70,108 @@ export async function POST(req: NextRequest) {
   if (!body?.vehicleId || !body?.platform || !body?.fareAmount) {
     return badRequest("vehicleId, platform, and fareAmount are required");
   }
+  const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let ride: any;
+  let replayed = false;
 
-  const ride = await prisma.ride.create({
-    data: {
-      vehicleId:          body.vehicleId,
-      driverId:           auth.userId,
-      platform:           body.platform.toUpperCase(),
-      fareAmount:         Number(body.fareAmount),
-      paymentType:        (body.paymentType ?? "cash").toUpperCase(),
-      pickupArea:         body.pickupArea  ?? null,
-      dropoffArea:        body.dropoffArea ?? null,
-      distanceKm:         body.distanceKm ? Number(body.distanceKm) : null,
-      estimatedFuelCost:  body.estimatedFuelCost ? Number(body.estimatedFuelCost) : null,
-      boostCost:          body.boostCost ? Number(body.boostCost) : null,
-      isDisputed:         false,
-      rideTime:           body.rideTime ? new Date(body.rideTime) : new Date(),
-    },
-    include: {
-      vehicle: true,
-      driver: true,
-    }
-  });
+  if (idempotencyKey) {
+    const scope = "ride_create";
+    const txResult = await prisma.$transaction(async (tx: any) => {
+      const existing = await tx.idempotencyKey.findUnique({
+        where: {
+          userId_scope_key: {
+            userId: auth.userId,
+            scope,
+            key: idempotencyKey,
+          },
+        },
+      });
 
-  // Notify owner
-  try {
-    const title = "New Ride Logged";
-    const body = `${ride.driver.name} logged ₨${Number(ride.fareAmount).toLocaleString()} on ${ride.platform.toLowerCase()}`;
-    
-    await prisma.notification.create({
+      if (existing?.resourceId) {
+        const existingRide = await tx.ride.findUnique({
+          where: { id: existing.resourceId },
+          include: { vehicle: true, driver: true },
+        });
+        if (existingRide) {
+          return { ride: existingRide, replayed: true };
+        }
+      }
+
+      const createdRide = await tx.ride.create({
+        data: {
+          vehicleId: body.vehicleId,
+          driverId: auth.userId,
+          platform: body.platform.toUpperCase(),
+          fareAmount: Number(body.fareAmount),
+          paymentType: (body.paymentType ?? "cash").toUpperCase(),
+          pickupArea: body.pickupArea ?? null,
+          dropoffArea: body.dropoffArea ?? null,
+          distanceKm: body.distanceKm ? Number(body.distanceKm) : null,
+          estimatedFuelCost: body.estimatedFuelCost ? Number(body.estimatedFuelCost) : null,
+          boostCost: body.boostCost ? Number(body.boostCost) : null,
+          isDisputed: false,
+          rideTime: body.rideTime ? new Date(body.rideTime) : new Date(),
+        },
+        include: { vehicle: true, driver: true },
+      });
+
+      await tx.idempotencyKey.create({
+        data: {
+          userId: auth.userId,
+          scope,
+          key: idempotencyKey,
+          resourceId: createdRide.id,
+        },
+      });
+
+      return { ride: createdRide, replayed: false };
+    });
+    ride = txResult.ride;
+    replayed = txResult.replayed;
+  } else {
+    ride = await prisma.ride.create({
       data: {
-        userId: ride.vehicle.ownerId,
-        type:   "ride_logged",
-        title,
-        body,
+        vehicleId:          body.vehicleId,
+        driverId:           auth.userId,
+        platform:           body.platform.toUpperCase(),
+        fareAmount:         Number(body.fareAmount),
+        paymentType:        (body.paymentType ?? "cash").toUpperCase(),
+        pickupArea:         body.pickupArea  ?? null,
+        dropoffArea:        body.dropoffArea ?? null,
+        distanceKm:         body.distanceKm ? Number(body.distanceKm) : null,
+        estimatedFuelCost:  body.estimatedFuelCost ? Number(body.estimatedFuelCost) : null,
+        boostCost:          body.boostCost ? Number(body.boostCost) : null,
+        isDisputed:         false,
+        rideTime:           body.rideTime ? new Date(body.rideTime) : new Date(),
+      },
+      include: {
+        vehicle: true,
+        driver: true,
       }
     });
+  }
 
-    // Send Push Notification
-    await sendPushNotification(ride.vehicle.ownerId, { title, body });
-  } catch (err) {
-    console.error("Failed to notify owner:", err);
+  // Notify owner
+  if (!replayed) {
+    try {
+      const title = "New Ride Logged";
+      const body = `${ride.driver.name} logged ₨${Number(ride.fareAmount).toLocaleString()} on ${ride.platform.toLowerCase()}`;
+      
+      await prisma.notification.create({
+        data: {
+          userId: ride.vehicle.ownerId,
+          type:   "ride_logged",
+          title,
+          body,
+        }
+      });
+
+      // Send Push Notification
+      await sendPushNotification(ride.vehicle.ownerId, { title, body });
+    } catch (err) {
+      console.error("Failed to notify owner:", err);
+    }
   }
 
   return NextResponse.json({
@@ -127,5 +189,6 @@ export async function POST(req: NextRequest) {
     isDisputed:        ride.isDisputed,
     rideTime:          ride.rideTime.toISOString(),
     loggedAt:          ride.loggedAt.toISOString(),
-  }, { status: 201 });
+    idempotentReplay:  replayed,
+  }, { status: replayed ? 200 : 201 });
 }

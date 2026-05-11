@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "sawari-book-secret";
+const DEV_FALLBACK_JWT_SECRET = "dev-only-insecure-jwt-secret";
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Missing required environment variable: JWT_SECRET");
+  }
+
+  console.warn("JWT_SECRET is not set. Using an insecure development fallback secret.");
+  return DEV_FALLBACK_JWT_SECRET;
+}
 
 export interface AuthContext {
   userId: string;
@@ -19,7 +31,7 @@ export function verifyAuth(req: NextRequest): AuthContext | null {
   if (!token) return null;
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+    const decoded = jwt.verify(token, getJwtSecret()) as { userId: string; role: string };
     const role = decoded.role === "driver" ? "driver" : "owner";
     return { userId: decoded.userId, role };
   } catch {

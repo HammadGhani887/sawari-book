@@ -11,6 +11,7 @@ import { useCurrentDriver } from "@/lib/store/driverStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import { saveExpenseOffline } from "@/hooks/useOfflineQueue";
 import api from "@/lib/services/api";
+import { createIdempotencyKey } from "@/lib/utils/idempotency";
 
 export default function DriverAddExpensePage() {
   const router      = useRouter();
@@ -50,9 +51,10 @@ export default function DriverAddExpensePage() {
       status:    "pending" as const,
       date:      new Date().toISOString(),
     };
+    const idempotencyKey = createIdempotencyKey("expense");
 
     if (!navigator.onLine) {
-      saveExpenseOffline(expenseData);
+      saveExpenseOffline(expenseData, idempotencyKey);
       toast("Expense saved offline. Will sync when connected.", {
         icon: "📶",
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
@@ -62,6 +64,7 @@ export default function DriverAddExpensePage() {
       let savedToDb = false;
       try {
         await api.post("/expenses", {
+          idempotencyKey,
           vehicleId: expenseData.vehicleId,
           category:  expenseData.category,
           amount:    expenseData.amount,
@@ -71,6 +74,7 @@ export default function DriverAddExpensePage() {
         savedToDb = true;
       } catch {
         // API failed — fall back to local store only
+        saveExpenseOffline(expenseData, idempotencyKey);
       }
 
       // Update local store for instant UI (only once)

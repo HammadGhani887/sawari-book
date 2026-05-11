@@ -16,6 +16,7 @@ import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import { saveRideOffline } from "@/hooks/useOfflineQueue";
 import api from "@/lib/services/api";
+import { createIdempotencyKey } from "@/lib/utils/idempotency";
 import type { PlatformId, PaymentType } from "@/lib/types";
 
 const PLATFORM_OPTIONS = [
@@ -107,6 +108,7 @@ export default function AddRidePage() {
       isDisputed:         false,
       rideTime:           new Date().toISOString(),
     };
+    const idempotencyKey = createIdempotencyKey("ride");
 
     // Net profit = fare - fuel - boost
     const totalDeductions = (estFuel ?? 0) + (boostNum ?? 0);
@@ -114,7 +116,7 @@ export default function AddRidePage() {
     setSavedProfit(profit);
 
     if (!navigator.onLine) {
-      saveRideOffline(rideData);
+      saveRideOffline(rideData, idempotencyKey);
       toast("Ride saved offline. Will sync when connected.", {
         icon: "📶",
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
@@ -124,6 +126,7 @@ export default function AddRidePage() {
       let savedToDb = false;
       try {
         await api.post("/rides", {
+          idempotencyKey,
           vehicleId:         rideData.vehicleId,
           platform:          rideData.platform,
           fareAmount:        rideData.fareAmount,
@@ -138,6 +141,7 @@ export default function AddRidePage() {
         savedToDb = true;
       } catch {
         // API failed — fall back to local store only
+        saveRideOffline(rideData, idempotencyKey);
       }
 
       // Update local store for instant UI (only once)

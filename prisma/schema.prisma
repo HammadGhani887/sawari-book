@@ -304,3 +304,16 @@ model Invite {
   @@index([token])
   @@map("invites")
 }
+
+model IdempotencyKey {
+  id         String   @id @default(uuid())
+  userId     String
+  scope      String
+  key        String
+  resourceId String?
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, scope, key])
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
