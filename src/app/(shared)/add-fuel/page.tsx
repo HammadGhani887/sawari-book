@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { Camera, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { ScreenHeader, NumericKeypad, Input, Button, Badge } from "@/components/ui";
@@ -12,15 +13,21 @@ import { useAuthStore } from "@/lib/store/authStore";
 import { saveFuelOffline } from "@/hooks/useOfflineQueue";
 import api from "@/lib/services/api";
 import { createIdempotencyKey } from "@/lib/utils/idempotency";
+import { compressImage } from "@/lib/utils/image";
 
-export default function AddFuelPage() {
+function AddFuelContent() {
   const router   = useRouter();
+  const searchParams = useSearchParams();
+  const paramVehicleId = searchParams.get("vehicleId");
+  
   const addFuel  = useFuelStore((s) => s.addFuelLog);
   const driver   = useCurrentDriver();
   const vehicles = useVehicleStore((s) => s.vehicles);
   const fileRef  = useRef<HTMLInputElement>(null);
+  const { user } = useAuthStore();
 
-  const vehicle       = vehicles.find((v) => v.id === driver?.vehicleId);
+  const vehicleId = paramVehicleId || driver?.vehicleId;
+  const vehicle   = vehicles.find((v) => v.id === vehicleId);
   const pricePerLitre = vehicle?.petrolPricePkrL ?? null;
 
   const [amount,         setAmount]         = useState("");
@@ -48,11 +55,16 @@ export default function AddFuelPage() {
     if (!litres) setLitresEdited(false);
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    
     const reader = new FileReader();
-    reader.onload = () => setReceiptPreview(reader.result as string);
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      const compressed = await compressImage(base64);
+      setReceiptPreview(compressed);
+    };
     reader.readAsDataURL(file);
   }
 
@@ -61,15 +73,16 @@ export default function AddFuelPage() {
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  const canSubmit = Number(amount) > 0 && Number(litres) > 0;
+  const canSubmit = !!vehicleId && Number(amount) > 0 && Number(litres) > 0;
 
   async function handleSave() {
-    if (!canSubmit) return;
+    if (!canSubmit || !vehicleId) return;
     setSaving(true);
     await new Promise((r) => setTimeout(r, 400));
+    
     const fuelData = {
-      vehicleId:  driver?.vehicleId ?? "",
-      driverId:   useAuthStore.getState().user?.id ?? "",
+      vehicleId:  vehicleId,
+      driverId:   user?.id ?? "", // Can be owner or driver
       amountPkr:  Number(amount),
       litres:     Number(litres),
       odometer:   odometer ? Number(odometer) : undefined,
@@ -86,7 +99,6 @@ export default function AddFuelPage() {
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
       });
     } else {
-      // Save to DB via API (syncs across all devices)
       let savedToDb = false;
       try {
         await api.post("/fuel", {
@@ -96,15 +108,14 @@ export default function AddFuelPage() {
           litres:    fuelData.litres,
           odometer:  fuelData.odometer,
           pumpName:  fuelData.pumpName,
+          receiptUrl: fuelData.receiptUrl,
           date:      fuelData.date,
         });
         savedToDb = true;
       } catch {
-        // API failed — fall back to local store only
         saveFuelOffline(fuelData, idempotencyKey);
       }
 
-      // Update local store for instant UI (only once)
       addFuel(fuelData);
       if (savedToDb) {
         toast.success("Fuel entry saved ✓");
@@ -120,9 +131,22 @@ export default function AddFuelPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <ScreenHeader title="Add Fuel ⛽" titleUrdu="تیل درج کریں" showBack />
+      <ScreenHeader 
+        title={user?.role === 'owner' ? "Add Fuel Log" : "Add Fuel ⛽"} 
+        titleUrdu="تیل درج کریں" 
+        showBack 
+      />
 
       <div className="flex flex-col gap-5 px-4 pt-4 pb-6">
+        {user?.role === 'owner' && vehicle && (
+          <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm flex items-center gap-3">
+            <span className="text-2xl">🚗</span>
+            <div>
+              <p className="text-sm font-bold text-slate-900">{vehicle.makeModel}</p>
+              <p className="text-xs text-slate-500">{vehicle.plateNumber}</p>
+            </div>
+          </div>
+        )}
 
         {/* Fuel Cost */}
         <div>
@@ -133,7 +157,7 @@ export default function AddFuelPage() {
           <NumericKeypad value={amount} onChange={setAmount} compact maxLength={6} />
         </div>
 
-        {/* Litres — auto or manual */}
+        {/* Litres */}
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -145,21 +169,11 @@ export default function AddFuelPage() {
                 Auto · Rs {pricePerLitre}/L
               </span>
             )}
-            {litresEdited && (
-              <button
-                onClick={() => setLitresEdited(false)}
-                className="text-[11px] text-slate-400 underline"
-              >
-                Reset to auto
-              </button>
-            )}
           </div>
 
           <div className={[
             "flex items-center bg-white border rounded-xl px-4 py-3 transition-all",
-            !litresEdited && pricePerLitre && Number(litres) > 0
-              ? "border-accent-blue bg-blue-50"
-              : "border-slate-200",
+            !litresEdited && pricePerLitre && Number(litres) > 0 ? "border-accent-blue bg-blue-50" : "border-slate-200",
           ].join(" ")}>
             <input
               type="number"
@@ -173,12 +187,6 @@ export default function AddFuelPage() {
             />
             <span className="text-slate-500 text-sm font-medium ml-2">L</span>
           </div>
-
-          {!pricePerLitre && (
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Set petrol price in your profile to auto-calculate litres.
-            </p>
-          )}
         </div>
 
         {/* Odometer */}
@@ -188,7 +196,7 @@ export default function AddFuelPage() {
             <span className="text-[10px] text-slate-500 font-[system-ui]" dir="rtl">میٹر ریڈنگ</span>
             <Badge type="inactive" label="Optional" />
           </div>
-          <Input type="number" value={odometer} onChange={setOdometer} placeholder="e.g. 45,500" driverMode />
+          <Input type="number" value={odometer} onChange={setOdometer} placeholder="e.g. 45,500" />
         </div>
 
         {/* Pump Name */}
@@ -198,7 +206,7 @@ export default function AddFuelPage() {
             <span className="text-[10px] text-slate-500 font-[system-ui]" dir="rtl">پمپ کا نام</span>
             <Badge type="inactive" label="Optional" />
           </div>
-          <Input type="text" value={pumpName} onChange={setPumpName} placeholder="e.g. PSO Gulberg" driverMode />
+          <Input type="text" value={pumpName} onChange={setPumpName} placeholder="e.g. PSO Gulberg" />
         </div>
 
         {/* Receipt Photo */}
@@ -220,15 +228,18 @@ export default function AddFuelPage() {
 
           {receiptPreview ? (
             <div className="relative rounded-xl overflow-hidden border border-slate-200">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={receiptPreview}
-                alt="Receipt"
-                className="w-full max-h-52 object-cover"
-              />
+              <div className="relative w-full h-52">
+                <Image
+                  src={receiptPreview}
+                  alt="Receipt"
+                  fill
+                  unoptimized
+                  className="object-cover"
+                />
+              </div>
               <button
                 onClick={removeReceipt}
-                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 shadow flex items-center justify-center text-slate-700 active:scale-95 transition-transform"
+                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 shadow flex items-center justify-center text-slate-700 z-10 active:scale-95 transition-transform"
               >
                 <X size={14} />
               </button>
@@ -246,7 +257,13 @@ export default function AddFuelPage() {
         </div>
 
         <div className="pt-2">
-          <Button variant="driver" fullWidth disabled={!canSubmit} loading={saving} onClick={handleSave}>
+          <Button 
+            variant={user?.role === 'owner' ? "primary" : "driver"} 
+            fullWidth 
+            disabled={!canSubmit} 
+            loading={saving} 
+            onClick={handleSave}
+          >
             Save Fuel Entry ✓
           </Button>
           <p className="text-center text-[11px] text-slate-600 mt-1.5" dir="rtl">تیل محفوظ کریں</p>
@@ -254,5 +271,13 @@ export default function AddFuelPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function AddFuelPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center">Loading fuel form...</div>}>
+      <AddFuelContent />
+    </Suspense>
   );
 }

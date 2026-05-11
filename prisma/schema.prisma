@@ -215,6 +215,7 @@ model FuelLog {
   litres    Decimal  @db.Decimal(6, 2)
   odometer  Int?
   pumpName  String?
+  receiptUrl String?
   date      DateTime
   createdAt DateTime @default(now())
 

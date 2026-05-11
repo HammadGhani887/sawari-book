@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { verifyAuth, unauthorized, badRequest } from "@/app/api/_lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -15,7 +16,16 @@ export async function GET(req: NextRequest) {
   const where: any = {};
 
   if (auth.role === "driver") {
-    where.driverId = auth.userId;
+    // Driver: see all logs for their assigned vehicle
+    const assignment = await prisma.driverAssignment.findFirst({
+      where: { driverId: auth.userId, isActive: true },
+      select: { vehicleId: true }
+    });
+    if (assignment?.vehicleId) {
+      where.vehicleId = assignment.vehicleId;
+    } else {
+      where.driverId = auth.userId; // Fallback
+    }
   } else {
     // Owner filter: only logs for vehicles owned by this user
     where.vehicle = { ownerId: auth.userId };
@@ -42,6 +52,7 @@ export async function GET(req: NextRequest) {
     litres:    Number(f.litres),
     odometer:  f.odometer,
     pumpName:  f.pumpName,
+    receiptUrl: f.receiptUrl,
     date:      f.date.toISOString(),
   }));
 
@@ -56,15 +67,34 @@ export async function POST(req: NextRequest) {
   if (!body?.vehicleId || !body?.amountPkr || !body?.litres) {
     return badRequest("vehicleId, amountPkr, and litres are required");
   }
+
+  // Security Check: Does user have access to this vehicle?
+  const vehicle = await prisma.vehicle.findUnique({
+    where: { id: body.vehicleId },
+    select: { ownerId: true, id: true }
+  });
+
+  if (!vehicle) return badRequest("Vehicle not found");
+
+  if (auth.role === "owner") {
+    if (vehicle.ownerId !== auth.userId) return unauthorized();
+  } else {
+    // Driver: check if this is their assigned vehicle
+    const assignment = await prisma.driverAssignment.findFirst({
+      where: { driverId: auth.userId, isActive: true },
+      select: { vehicleId: true }
+    });
+    if (assignment?.vehicleId !== body.vehicleId) return unauthorized();
+  }
+
   const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let log: any;
+  let log;
   let replayed = false;
 
   if (idempotencyKey) {
     const scope = "fuel_create";
-    const txResult = await prisma.$transaction(async (tx: any) => {
+    const txResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.idempotencyKey.findUnique({
         where: {
           userId_scope_key: {
@@ -90,6 +120,7 @@ export async function POST(req: NextRequest) {
           litres: Number(body.litres),
           odometer: body.odometer ? Number(body.odometer) : null,
           pumpName: body.pumpName ?? null,
+          receiptUrl: body.receiptUrl ?? null,
           date: body.date ? new Date(body.date) : new Date(),
         },
       });
@@ -104,7 +135,7 @@ export async function POST(req: NextRequest) {
       });
 
       return { log: createdLog, replayed: false };
-    });
+    }, { timeout: 20000 });
     log = txResult.log;
     replayed = txResult.replayed;
   } else {
@@ -116,6 +147,7 @@ export async function POST(req: NextRequest) {
         litres: Number(body.litres),
         odometer: body.odometer ? Number(body.odometer) : null,
         pumpName: body.pumpName ?? null,
+        receiptUrl: body.receiptUrl ?? null,
         date: body.date ? new Date(body.date) : new Date(),
       },
     });
@@ -129,6 +161,7 @@ export async function POST(req: NextRequest) {
     litres:    Number(log.litres),
     odometer:  log.odometer,
     pumpName:  log.pumpName,
+    receiptUrl: log.receiptUrl,
     date:      log.date.toISOString(),
     idempotentReplay: replayed,
   }, { status: replayed ? 200 : 201 });

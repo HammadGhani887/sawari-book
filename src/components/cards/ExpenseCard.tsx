@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import Badge from "@/components/ui/Badge";
 import { Expense, ExpenseStatus } from "@/lib/types";
 import { CATEGORY_MAP } from "@/lib/constants/expenseCategories";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
+import { openReceiptImage } from "@/lib/utils/image";
 
 interface ExpenseCardProps {
   expense: Expense;
@@ -35,12 +37,35 @@ export default function ExpenseCard({
         </p>
 
         {expense.note && (
-          <p className="text-xs text-slate-500 mt-0.5 truncate">{expense.note}</p>
+          <p className="text-xs text-slate-500 mt-0.5 break-words">{expense.note}</p>
         )}
 
         <p className="text-[10px] text-slate-600 mt-1">
           {formatDate(expense.date)}
         </p>
+
+        {expense.receiptUrl && (
+          <div className="mt-2.5">
+            <button
+              onClick={() => openReceiptImage(expense.receiptUrl!)}
+              className="relative inline-block group text-left"
+            >
+              <div className="w-20 h-20 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 transition-all active:scale-95 group-hover:opacity-90">
+                <Image
+                  src={expense.receiptUrl}
+                  alt="Receipt"
+                  width={80}
+                  height={80}
+                  unoptimized
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="absolute bottom-1 right-1 bg-white/90 backdrop-blur-sm rounded-md px-1 py-0.5 border border-slate-200 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <p className="text-[8px] font-bold text-slate-700 uppercase">Click to open</p>
+              </div>
+            </button>
+          </div>
+        )}
 
         {showActions && isPending && (
           <div className="flex gap-2 mt-2.5">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { verifyAuth, unauthorized, badRequest } from "@/app/api/_lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -16,7 +17,16 @@ export async function GET(req: NextRequest) {
   const where: any = {};
 
   if (auth.role === "driver") {
-    where.loggedBy = auth.userId;
+    // Driver: see all expenses for their assigned vehicle
+    const assignment = await prisma.driverAssignment.findFirst({
+      where: { driverId: auth.userId, isActive: true },
+      select: { vehicleId: true }
+    });
+    if (assignment?.vehicleId) {
+      where.vehicleId = assignment.vehicleId;
+    } else {
+      where.loggedBy = auth.userId; // Fallback
+    }
   } else {
     // Owner filter: only expenses for vehicles owned by this user
     where.vehicle = { ownerId: auth.userId };
@@ -61,17 +71,36 @@ export async function POST(req: NextRequest) {
   if (!body?.vehicleId || !body?.category || !body?.amount) {
     return badRequest("vehicleId, category, and amount are required");
   }
+
+  // Security Check: Does user have access to this vehicle?
+  const vehicle = await prisma.vehicle.findUnique({
+    where: { id: body.vehicleId },
+    select: { ownerId: true, id: true }
+  });
+
+  if (!vehicle) return badRequest("Vehicle not found");
+
+  if (auth.role === "owner") {
+    if (vehicle.ownerId !== auth.userId) return unauthorized();
+  } else {
+    // Driver: check if this is their assigned vehicle
+    const assignment = await prisma.driverAssignment.findFirst({
+      where: { driverId: auth.userId, isActive: true },
+      select: { vehicleId: true }
+    });
+    if (assignment?.vehicleId !== body.vehicleId) return unauthorized();
+  }
+
   const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
 
   // Owner-created expenses are auto-approved; driver-submitted are pending
   const status = auth.role === "owner" ? "APPROVED" : "PENDING";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let expense: any;
+  let expense;
   let replayed = false;
 
   if (idempotencyKey) {
     const scope = "expense_create";
-    const txResult = await prisma.$transaction(async (tx: any) => {
+    const txResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.idempotencyKey.findUnique({
         where: {
           userId_scope_key: {
@@ -119,7 +148,7 @@ export async function POST(req: NextRequest) {
       });
 
       return { expense: createdExpense, replayed: false };
-    });
+    }, { timeout: 20000 });
     expense = txResult.expense;
     replayed = txResult.replayed;
   } else {
@@ -153,11 +182,12 @@ export async function POST(req: NextRequest) {
           type:   "expense_pending",
           title,
           body,
+          data: { url: `/vehicles/${expense.vehicleId}?tab=expenses` }
         }
       });
 
       // Send Push Notification
-      await sendPushNotification(expense.vehicle.ownerId, { title, body });
+      await sendPushNotification(expense.vehicle.ownerId, { title, body, url: `/vehicles/${expense.vehicleId}?tab=expenses` });
     } catch (err) {
       console.error("Failed to notify owner:", err);
     }

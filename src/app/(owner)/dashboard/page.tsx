@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui";
-import { KPICard, VehicleCard } from "@/components/cards";
+import { KPICard, VehicleCard, ExpenseCard } from "@/components/cards";
 import { WeeklyBarChart } from "@/components/charts";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useVehicleStore } from "@/lib/store/vehicleStore";
@@ -14,10 +15,10 @@ import { useDriverStore } from "@/lib/store/driverStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { formatCurrency, getGreeting } from "@/lib/utils/format";
 import { Calculator } from "lucide-react";
-import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import { ScreenHeader, DateRangeFilter } from "@/components/ui";
 import { getRangeInterval, isDateInRange, DateRangeType } from "@/lib/utils/date";
 import { exportToPDF, exportToExcel, ExportData } from "@/lib/utils/export";
+import { openReceiptImage } from "@/lib/utils/image";
 import api from "@/lib/services/api";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -362,17 +363,61 @@ export default function OwnerDashboardPage() {
               .sort((a, b) => b.date.localeCompare(a.date))
               .slice(0, 3)
               .map((exp) => (
-                <div key={exp.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{EXPENSE_CATEGORIES.find(c => c.id === exp.category)?.emoji || "🧾"}</span>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{EXPENSE_CATEGORIES.find(c => c.id === exp.category)?.name || exp.category}</p>
-                      <p className="text-[10px] text-slate-500">{new Date(exp.date).toLocaleDateString("en-PK", { day: "numeric", month: "short" })} · {exp.status}</p>
-                    </div>
-                  </div>
-                  <p className="text-sm font-bold text-status-amber tabular-nums">− {formatCurrency(exp.amount)}</p>
-                </div>
+                <ExpenseCard key={exp.id} expense={exp} />
               ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Recent Fuel ── */}
+      {fuelLogs.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-base font-bold text-slate-900 leading-tight">Recent Fuel Logs</p>
+              <p className="text-[11px] text-slate-500 mt-0.5 font-[system-ui]" dir="rtl">تیل کا ریکارڈ</p>
+            </div>
+            <p className="text-xs text-slate-400">Latest 3 entries</p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {fuelLogs
+              .sort((a, b) => b.date.localeCompare(a.date))
+              .slice(0, 3)
+              .map((log) => {
+                const vehicle = vehicles.find(v => v.id === log.vehicleId);
+                return (
+                  <div key={log.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-status-amberDim flex items-center justify-center text-xl">
+                        ⛽
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {formatCurrency(log.amountPkr)} · {log.litres}L
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          {vehicle?.plateNumber} · {new Date(log.date).toLocaleDateString("en-PK", { day: "numeric", month: "short" })}
+                        </p>
+                      </div>
+                    </div>
+                    {log.receiptUrl && (
+                      <button
+                        onClick={() => openReceiptImage(log.receiptUrl!)}
+                        className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 shrink-0 active:scale-95 transition-transform"
+                      >
+                        <Image 
+                          src={log.receiptUrl} 
+                          alt="Receipt" 
+                          width={48}
+                          height={48}
+                          unoptimized
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

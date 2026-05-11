@@ -12,6 +12,7 @@ import { useAuthStore } from "@/lib/store/authStore";
 import { saveExpenseOffline } from "@/hooks/useOfflineQueue";
 import api from "@/lib/services/api";
 import { createIdempotencyKey } from "@/lib/utils/idempotency";
+import { compressImage } from "@/lib/utils/image";
 
 export default function DriverAddExpensePage() {
   const router      = useRouter();
@@ -27,10 +28,17 @@ export default function DriverAddExpensePage() {
 
   const canSubmit = !!category && Number(amount) > 0;
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setReceiptPreview(URL.createObjectURL(file));
+    
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      const compressed = await compressImage(base64);
+      setReceiptPreview(compressed);
+    };
+    reader.readAsDataURL(file);
   }
 
   function handleRemoveReceipt() {
@@ -48,6 +56,7 @@ export default function DriverAddExpensePage() {
       category,
       amount:    Number(amount),
       note:      note || undefined,
+      receiptUrl: receiptPreview ?? undefined,
       status:    "pending" as const,
       date:      new Date().toISOString(),
     };
@@ -69,6 +78,7 @@ export default function DriverAddExpensePage() {
           category:  expenseData.category,
           amount:    expenseData.amount,
           note:      expenseData.note,
+          receiptUrl: expenseData.receiptUrl,
           date:      expenseData.date,
         });
         savedToDb = true;

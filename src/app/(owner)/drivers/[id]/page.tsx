@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Phone, User, Pencil, Check, X } from "lucide-react";
 import { ScreenHeader, Card, DateRangeSelector, Badge } from "@/components/ui";
@@ -15,6 +16,7 @@ import { useFuelStore } from "@/lib/store/fuelStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import toast from "react-hot-toast";
 import { getRangeInterval, isDateInRange } from "@/lib/utils/date";
+import { openReceiptImage } from "@/lib/utils/image";
 import type { SalaryType } from "@/lib/types";
 
 type DateRange = "today" | "week" | "month" | "custom";
@@ -29,6 +31,7 @@ const SALARY_TYPES: { id: SalaryType; label: string }[] = [
 interface ActivityEntry {
   time: string; icon: string; description: string;
   sub: string; amount: string; dotColor: string; amountColor: string;
+  receiptUrl?: string;
 }
 
 function ActivityRow({ entry, isLast }: { entry: ActivityEntry; isLast: boolean }) {
@@ -47,6 +50,25 @@ function ActivityRow({ entry, isLast }: { entry: ActivityEntry; isLast: boolean 
           <p className={`text-sm font-semibold tabular-nums shrink-0 leading-snug ${entry.amountColor}`}>{entry.amount}</p>
         </div>
         {entry.sub && <p className="text-xs text-slate-500 mt-0.5">{entry.sub}</p>}
+        {entry.receiptUrl && (
+          <div className="mt-2">
+            <button
+              onClick={() => openReceiptImage(entry.receiptUrl!)}
+              className="relative inline-block group text-left"
+            >
+              <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 transition-all active:scale-95 group-hover:opacity-90">
+                <Image
+                  src={entry.receiptUrl}
+                  alt="Receipt"
+                  width={48}
+                  height={48}
+                  unoptimized
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -138,6 +160,7 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
         amount:      `−${formatCurrency(e.amount)}`,
         dotColor:    e.status === "pending" ? "#64748B" : "#F59E0B",
         amountColor: "text-status-amber",
+        receiptUrl:  e.receiptUrl,
       }));
 
     return [...rideEntries, ...expenseEntries]

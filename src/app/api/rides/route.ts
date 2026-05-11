@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { verifyAuth, unauthorized, badRequest } from "@/app/api/_lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -70,14 +71,33 @@ export async function POST(req: NextRequest) {
   if (!body?.vehicleId || !body?.platform || !body?.fareAmount) {
     return badRequest("vehicleId, platform, and fareAmount are required");
   }
+
+  // Security Check: Does user have access to this vehicle?
+  const vehicle = await prisma.vehicle.findUnique({
+    where: { id: body.vehicleId },
+    select: { ownerId: true, id: true }
+  });
+
+  if (!vehicle) return badRequest("Vehicle not found");
+
+  if (auth.role === "owner") {
+    if (vehicle.ownerId !== auth.userId) return unauthorized();
+  } else {
+    // Driver: check if this is their assigned vehicle
+    const assignment = await prisma.driverAssignment.findFirst({
+      where: { driverId: auth.userId, isActive: true },
+      select: { vehicleId: true }
+    });
+    if (assignment?.vehicleId !== body.vehicleId) return unauthorized();
+  }
+
   const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let ride: any;
+  let ride;
   let replayed = false;
 
   if (idempotencyKey) {
     const scope = "ride_create";
-    const txResult = await prisma.$transaction(async (tx: any) => {
+    const txResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.idempotencyKey.findUnique({
         where: {
           userId_scope_key: {
@@ -126,7 +146,7 @@ export async function POST(req: NextRequest) {
       });
 
       return { ride: createdRide, replayed: false };
-    });
+    }, { timeout: 20000 });
     ride = txResult.ride;
     replayed = txResult.replayed;
   } else {
@@ -164,11 +184,12 @@ export async function POST(req: NextRequest) {
           type:   "ride_logged",
           title,
           body,
+          data: { url: `/vehicles/${ride.vehicleId}?tab=rides` }
         }
       });
 
       // Send Push Notification
-      await sendPushNotification(ride.vehicle.ownerId, { title, body });
+      await sendPushNotification(ride.vehicle.ownerId, { title, body, url: `/vehicles/${ride.vehicleId}?tab=rides` });
     } catch (err) {
       console.error("Failed to notify owner:", err);
     }

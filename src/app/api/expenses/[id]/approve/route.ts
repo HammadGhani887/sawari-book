@@ -29,11 +29,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         type:   "expense_approved",
         title,
         body,
+        data: { url: "/my-day" }
       }
     });
 
     // Send Push Notification
-    await sendPushNotification(updated.loggedBy, { title, body });
+    await sendPushNotification(updated.loggedBy, { title, body, url: "/my-day" });
   } catch (err) {
     console.error("Failed to notify driver:", err);
   }

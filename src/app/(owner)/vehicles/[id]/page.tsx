@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { Phone, Link2, CheckCheck, Pencil, Check, X, RefreshCw } from "lucide-react";
 import { ScreenHeader, Card, Badge } from "@/components/ui";
 import { RideEntryCard, ExpenseCard, SettlementRow } from "@/components/cards";
@@ -12,6 +14,7 @@ import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useDriverStore } from "@/lib/store/driverStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
+import { openReceiptImage } from "@/lib/utils/image";
 import { exportToPDF } from "@/lib/utils/pdfExport";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import toast from "react-hot-toast";
@@ -123,6 +126,11 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
     const vExp = expenses.filter((e) => e.vehicleId === vehicleId);
     return vExp.filter((e) => isDateInRange(e.date, activeInterval));
   }, [expenses, vehicleId, activeInterval]);
+
+  const filteredFuelLogs = useMemo(() => {
+    const vFuel = fuelLogs.filter((f) => f.vehicleId === vehicleId);
+    return vFuel.filter((f) => isDateInRange(f.date, activeInterval));
+  }, [fuelLogs, vehicleId, activeInterval]);
 
   const totalRevenue  = filteredRides.reduce((s, r) => s + r.fareAmount, 0);
   const totalExpenses = filteredExpenses
@@ -557,6 +565,69 @@ export default function VehicleDetailPage({ params }: { params: { id: string } }
             <p className="text-[11px] text-slate-400 mt-3">
               Driver sees these settings automatically. If driver updates price/average, it reflects here too.
             </p>
+
+            <div className="mt-4 pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-slate-900">Fuel Entries</p>
+                {vehicle && (
+                  <Link 
+                    href={`/add-fuel?vehicleId=${vehicle.id}`}
+                    className="px-3 py-1 bg-accent-greenDim text-accent-green text-[10px] font-bold rounded-lg hover:bg-accent-green hover:text-white transition-all active:scale-95"
+                  >
+                    + ADD FUEL
+                  </Link>
+                )}
+              </div>
+              {filteredFuelLogs.length === 0 ? (
+                <p className="text-xs text-slate-500">No fuel entries in selected date range.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {filteredFuelLogs.map((log) => (
+                    <div key={log.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {formatCurrency(log.amountPkr)} · {log.litres}L
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {new Date(log.date).toLocaleString("en-PK", {
+                              day: "numeric",
+                              month: "short",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                        {log.receiptUrl && (
+                          <button
+                            onClick={() => openReceiptImage(log.receiptUrl!)}
+                            className="relative group shrink-0"
+                          >
+                            <div className="w-14 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 transition-all active:scale-95 group-hover:opacity-90">
+                              <Image
+                                src={log.receiptUrl}
+                                alt="Fuel Receipt"
+                                width={56}
+                                height={56}
+                                unoptimized
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 bg-white rounded-md p-0.5 border border-slate-200 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                              <p className="text-[7px] font-bold text-slate-700">OPEN</p>
+                            </div>
+                          </button>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                        {log.pumpName && <span>Pump: {log.pumpName}</span>}
+                        {log.odometer !== undefined && <span>Odometer: {log.odometer} km</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </Card>
         )}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { ScreenHeader } from "@/components/ui";
 import { useNotificationStore } from "@/lib/store/notificationStore";
 import { useAuthStore } from "@/lib/store/authStore";
@@ -40,15 +41,24 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 function NotifRow({ notif, role, onPress }: { notif: Notification; role?: string; onPress: () => void }) {
+  const router = useRouter();
   const isAmber = notif.type === "anomaly" || notif.type === "expense_pending" || notif.type === "expense_rejected";
   const icon    = TYPE_ICON[notif.type] ?? "🔔";
   const accentClass = role === "owner" ? (isAmber ? "bg-status-amber" : "bg-accent-green") : (isAmber ? "bg-status-amber" : "bg-accent-blue");
   const dimClass = role === "owner" ? (isAmber ? "bg-status-amberDim" : "bg-accent-greenDim") : (isAmber ? "bg-status-amberDim" : "bg-accent-blueDim");
 
+  const handlePress = () => {
+    onPress();
+    const targetUrl = notif.data?.url;
+    if (typeof targetUrl === "string") {
+      router.push(targetUrl);
+    }
+  };
+
   return (
     <button
       type="button"
-      onClick={onPress}
+      onClick={handlePress}
       className={[
         "w-full flex items-start gap-3 py-3 px-4 rounded-xl mb-2 text-left active:opacity-70 transition-opacity",
         notif.isRead ? "opacity-60 bg-white" : dimClass,
@@ -60,9 +70,21 @@ function NotifRow({ notif, role, onPress }: { notif: Notification; role?: string
         {notif.body && <p className="text-xs text-slate-600 mt-0.5">{notif.body}</p>}
         <p className="text-[10px] text-slate-400 mt-1">{formatTimeAgo(notif.createdAt)}</p>
       </div>
-      {!notif.isRead && (
-        <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${accentClass}`} />
-      )}
+      
+      <div className="flex flex-col items-end gap-2 shrink-0 self-center">
+        {!notif.isRead && (
+          <div className={`w-2 h-2 rounded-full ${accentClass}`} />
+        )}
+        {!!notif.data?.url && (
+          <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${
+            role === 'owner' 
+              ? 'border-accent-green/30 text-accent-green bg-accent-green/5' 
+              : 'border-accent-blue/30 text-accent-blue bg-accent-blue/5'
+          }`}>
+            VIEW
+          </span>
+        )}
+      </div>
     </button>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import Image from "next/image";
 import { getRangeInterval, isDateInRange } from "@/lib/utils/date";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, ScreenHeader } from "@/components/ui";
@@ -8,6 +9,7 @@ import { useRideStore } from "@/lib/store/rideStore";
 import { useFuelStore } from "@/lib/store/fuelStore";
 import { useExpenseStore } from "@/lib/store/expenseStore";
 import { useCurrentDriver } from "@/lib/store/driverStore";
+import { openReceiptImage } from "@/lib/utils/image";
 import { formatCurrency } from "@/lib/utils/format";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import api from "@/lib/services/api";
@@ -26,6 +28,7 @@ interface DayEntry {
   amount: string;
   dotColor: string;
   amountColor: string;
+  receiptUrl?: string;
 }
 
 function TimelineEntry({ entry, isLast }: { entry: DayEntry; isLast: boolean }) {
@@ -46,6 +49,25 @@ function TimelineEntry({ entry, isLast }: { entry: DayEntry; isLast: boolean }) 
           </p>
         </div>
         {entry.sub && <p className="text-xs text-slate-500 mt-0.5">{entry.sub}</p>}
+        {entry.receiptUrl && (
+          <div className="mt-2">
+            <button
+              onClick={() => openReceiptImage(entry.receiptUrl!)}
+              className="relative inline-block group text-left"
+            >
+              <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 transition-all active:scale-95 group-hover:opacity-90">
+                <Image
+                  src={entry.receiptUrl}
+                  alt="Receipt"
+                  width={64}
+                  height={64}
+                  unoptimized
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -82,9 +104,17 @@ export default function MyDayPage() {
   useEffect(() => {
     const sync = async () => {
       try {
-        const res = await api.get("/rides");
-        if (res.data) useRideStore.setState({ rides: res.data });
-      } catch (e) { console.error(e); }
+        const [ridesRes, fuelRes, expRes] = await Promise.all([
+          api.get("/rides"),
+          api.get("/fuel"),
+          api.get("/expenses")
+        ]);
+        if (ridesRes.data) useRideStore.setState({ rides: ridesRes.data });
+        if (fuelRes.data)  useFuelStore.setState({ fuelLogs: fuelRes.data });
+        if (expRes.data)   useExpenseStore.setState({ expenses: expRes.data });
+      } catch (e) { 
+        console.error("Sync failed:", e); 
+      }
     };
     sync();
   }, []);
@@ -128,33 +158,41 @@ export default function MyDayPage() {
       };
     });
 
-    const fuelEntries: DayEntry[] = dayFuel.map((f) => ({
-      key:         f.id,
-      sortKey:     f.date,
-      time:        new Date(f.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
-      icon:        "⛽",
-      description: `Fuel${f.pumpName ? ` · ${f.pumpName}` : ""} · ${f.litres}L`,
-      sub:         f.odometer ? `Odometer: ${f.odometer.toLocaleString()} km` : "",
-      amount:      `−${formatCurrency(f.amountPkr)}`,
-      dotColor:    "#F59E0B",
-      amountColor: "text-status-amber",
-    }));
+    const fuelEntries: DayEntry[] = dayFuel.map((f) => {
+      const isByOwner = f.driverId !== driver?.id;
+      return {
+        key:         f.id,
+        sortKey:     f.date,
+        time:        new Date(f.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
+        icon:        "⛽",
+        description: `Fuel${f.pumpName ? ` · ${f.pumpName}` : ""} · ${f.litres}L${isByOwner ? " (Owner)" : ""}`,
+        sub:         (f.odometer ? `Odometer: ${f.odometer.toLocaleString()} km` : "") + (isByOwner ? (f.odometer ? " · Added by Owner" : "Added by Owner") : ""),
+        amount:      `−${formatCurrency(f.amountPkr)}`,
+        dotColor:    isByOwner ? "#2563EB" : "#F59E0B",
+        amountColor: isByOwner ? "text-accent-green" : "text-status-amber",
+        receiptUrl:  f.receiptUrl,
+      };
+    });
 
-    const expenseEntries: DayEntry[] = dayExpenses.map((e) => ({
-      key:         e.id,
-      sortKey:     e.date,
-      time:        new Date(e.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
-      icon:        "🧾",
-      description: EXPENSE_CATEGORIES.find((c) => c.id === e.category)?.name ?? e.category,
-      sub:         e.status === "pending" ? "Pending approval" : e.status === "approved" ? "Approved" : "Rejected",
-      amount:      `−${formatCurrency(e.amount)}`,
-      dotColor:    e.status === "pending" ? "#64748B" : "#F59E0B",
-      amountColor: e.status === "pending" ? "text-slate-600" : "text-status-amber",
-    }));
+    const expenseEntries: DayEntry[] = dayExpenses.map((e) => {
+      const isByOwner = e.loggedBy !== driver?.id;
+      return {
+        key:         e.id,
+        sortKey:     e.date,
+        time:        new Date(e.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
+        icon:        "🧾",
+        description: (EXPENSE_CATEGORIES.find((c) => c.id === e.category)?.name ?? e.category) + (isByOwner ? " (Owner)" : ""),
+        sub:         (e.status === "pending" ? "Pending" : e.status === "approved" ? "Approved" : "Rejected") + (isByOwner ? " · Added by Owner" : ""),
+        amount:      `−${formatCurrency(e.amount)}`,
+        dotColor:    isByOwner ? "#2563EB" : (e.status === "pending" ? "#64748B" : "#F59E0B"),
+        amountColor: isByOwner ? "text-accent-green" : (e.status === "pending" ? "text-slate-600" : "text-status-amber"),
+        receiptUrl:  e.receiptUrl,
+      };
+    });
 
     return [...rideEntries, ...fuelEntries, ...expenseEntries]
       .sort((a, b) => b.sortKey.localeCompare(a.sortKey));
-  }, [dayRides, dayFuel, dayExpenses]);
+  }, [dayRides, dayFuel, dayExpenses, driver?.id]);
 
   // Totals
   const totalRevenue  = dayRides.reduce((s, r) => s + r.fareAmount, 0);

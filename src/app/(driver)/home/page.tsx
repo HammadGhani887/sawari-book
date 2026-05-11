@@ -137,9 +137,17 @@ export default function DriverHomePage() {
   useEffect(() => {
     const sync = async () => {
       try {
-        const res = await api.get("/rides");
-        if (res.data) useRideStore.setState({ rides: res.data });
-      } catch (e) { console.error(e); }
+        const [ridesRes, fuelRes, expRes] = await Promise.all([
+          api.get("/rides"),
+          api.get("/fuel"),
+          api.get("/expenses")
+        ]);
+        if (ridesRes.data) useRideStore.setState({ rides: ridesRes.data });
+        if (fuelRes.data)  useFuelStore.setState({ fuelLogs: fuelRes.data });
+        if (expRes.data)   useExpenseStore.setState({ expenses: expRes.data });
+      } catch (e) { 
+        console.error("Sync failed:", e); 
+      }
     };
     sync();
   }, []);
@@ -216,33 +224,39 @@ export default function DriverHomePage() {
       };
     });
 
-    const fuelEntries: LogEntry[] = filteredFuel.map((f) => ({
-      key:         f.id,
-      sortKey:     f.date,
-      time:        new Date(f.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
-      icon:        "⛽",
-      description: `Fuel · ${f.pumpName ?? ""}`,
-      sub:         `${f.litres}L`,
-      amount:      `− ${formatCurrency(f.amountPkr)}`,
-      profit:      null,
-      dotColor:    "#F59E0B",
-    }));
+    const fuelEntries: LogEntry[] = filteredFuel.map((f) => {
+      const isByOwner = f.driverId !== userId;
+      return {
+        key:         f.id,
+        sortKey:     f.date,
+        time:        new Date(f.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
+        icon:        "⛽",
+        description: `Fuel · ${f.pumpName ?? ""}${isByOwner ? " (Owner)" : ""}`,
+        sub:         `${f.litres}L${isByOwner ? " · Added by Owner" : ""}`,
+        amount:      `− ${formatCurrency(f.amountPkr)}`,
+        profit:      null,
+        dotColor:    isByOwner ? "#2563EB" : "#F59E0B",
+      };
+    });
 
-    const expenseEntries: LogEntry[] = filteredExpenses.map((e) => ({
-      key:         e.id,
-      sortKey:     e.date,
-      time:        new Date(e.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
-      icon:        "🧾",
-      description: EXPENSE_CATEGORIES.find((c) => c.id === e.category)?.name ?? e.category,
-      sub:         e.status === "pending" ? "Pending approval" : "Approved",
-      amount:      `− ${formatCurrency(e.amount)}`,
-      profit:      null,
-      dotColor:    e.status === "pending" ? "#64748B" : "#F59E0B",
-    }));
+    const expenseEntries: LogEntry[] = filteredExpenses.map((e) => {
+      const isByOwner = e.loggedBy !== userId;
+      return {
+        key:         e.id,
+        sortKey:     e.date,
+        time:        new Date(e.date).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" }),
+        icon:        "🧾",
+        description: (EXPENSE_CATEGORIES.find((c) => c.id === e.category)?.name ?? e.category) + (isByOwner ? " (Owner)" : ""),
+        sub:         `${e.status === "pending" ? "Pending" : "Approved"}${isByOwner ? " · Added by Owner" : ""}`,
+        amount:      `− ${formatCurrency(e.amount)}`,
+        profit:      null,
+        dotColor:    isByOwner ? "#2563EB" : (e.status === "pending" ? "#64748B" : "#F59E0B"),
+      };
+    });
 
     return [...rideEntries, ...fuelEntries, ...expenseEntries]
       .sort((a, b) => b.sortKey.localeCompare(a.sortKey));
-  }, [filteredRides, filteredFuel, filteredExpenses]);
+  }, [filteredRides, filteredFuel, filteredExpenses, userId]);
 
   return (
     <div className="px-4 pt-4 pb-4 flex flex-col gap-5">

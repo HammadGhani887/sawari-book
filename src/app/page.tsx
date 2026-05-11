@@ -23,13 +23,20 @@ function MobileSplash() {
   }, [isAuthenticated, user, router]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-brand-bg gap-4">
-      <div className="w-24 h-24 rounded-3xl overflow-hidden animate-scaleIn shadow-xl">
-        <Image src="/sawari-app.png" alt="Sawari Book" width={96} height={96} className="w-full h-full object-cover" priority />
+    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 gap-6">
+      <div className="w-28 h-28 rounded-[2rem] overflow-hidden animate-scaleIn shadow-2xl border border-white/10 bg-white p-1">
+        <Image 
+          src="/sawari-app.png" 
+          alt="Sawari Book" 
+          width={112} 
+          height={112} 
+          className="w-full h-full object-cover rounded-[1.8rem]" 
+          priority 
+        />
       </div>
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-white tracking-tight">Sawari Book</h1>
-        <p className="text-slate-500 text-sm mt-1" dir="rtl">سواری بُک</p>
+      <div className="text-center animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+        <h1 className="text-4xl font-bold text-white tracking-tight">Sawari Book</h1>
+        <p className="text-accent-green text-sm font-medium mt-2 tracking-widest uppercase" dir="rtl">سواری بُک</p>
       </div>
     </div>
   );

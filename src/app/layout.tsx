@@ -6,6 +6,7 @@ import InstallBanner from "@/components/layout/InstallBanner";
 import OfflineSyncProvider from "@/components/layout/OfflineSyncProvider";
 import PushNotificationProvider from "@/components/layout/PushNotificationProvider";
 import StoreCleaner from "@/components/layout/StoreCleaner";
+import ImageLightbox from "@/components/layout/ImageLightbox";
 import "./globals.css";
 
 // Use local Geist font — no Google Fonts network request needed
@@ -72,6 +73,7 @@ export default function RootLayout({
           <PushNotificationProvider />
           {children}
           <InstallBanner />
+          <ImageLightbox />
         </ErrorBoundary>
         <Toaster
           position="top-center"
