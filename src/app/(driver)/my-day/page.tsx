@@ -217,7 +217,7 @@ export default function MyDayPage() {
   const formattedDate = selectedDate.toLocaleDateString("en-PK", { weekday: "long", day: "numeric", month: "long" });
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col min-h-full w-full overflow-x-hidden">
       <ScreenHeader title="My Day" titleUrdu="میرا دن" showRefresh={true} />
 
       {/* Date navigator */}
@@ -225,8 +225,8 @@ export default function MyDayPage() {
         <button onClick={prevDay} className="w-8 h-8 flex items-center justify-center rounded-full bg-brand-surface text-slate-600 active:text-slate-900 transition-colors">
           <ChevronLeft size={16} />
         </button>
-        <div className="text-center">
-          <p className="text-sm font-semibold text-slate-900 leading-tight">{formattedDate}</p>
+        <div className="text-center min-w-0 px-2">
+          <p className="text-sm font-semibold text-slate-900 leading-tight truncate">{formattedDate}</p>
           {isToday && <p className="text-[10px] text-accent-blue font-medium mt-0.5">Today</p>}
         </div>
         <button onClick={nextDay} disabled={isToday} className="w-8 h-8 flex items-center justify-center rounded-full bg-brand-surface text-slate-600 active:text-slate-900 disabled:opacity-30 transition-colors">
@@ -276,7 +276,7 @@ export default function MyDayPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Distance & Efficiency</p>
               <p className="text-[10px] text-slate-600 font-[system-ui]" dir="rtl">فاصلہ اور کارکردگی</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full overflow-x-auto no-scrollbar pb-1">
               <StatPill label="Total Distance" value={`${totalKm.toFixed(1)} km`} />
               {kmPerLitre && (
                 <StatPill label="Fuel Average" value={`${kmPerLitre} km/L`} sub={`${totalLitres.toFixed(1)}L used`} />
@@ -324,15 +324,15 @@ export default function MyDayPage() {
 
       {/* Sticky net earnings bar */}
       <div className="fixed bottom-16 left-0 right-0 px-4 pb-2 pointer-events-none">
-        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xl shadow-black/10 pointer-events-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Net Profit</span>
-              <p className="text-[10px] text-slate-400 mt-0.5">
+        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xl shadow-black/10 pointer-events-auto min-w-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 truncate block">Net Profit</span>
+              <p className="text-[10px] text-slate-400 mt-0.5 truncate">
                 {formatCurrency(totalRevenue)} − {formatCurrency(totalFuelCost)} fuel{totalBoost > 0 ? ` − ${formatCurrency(totalBoost)} boost` : ""}{otherExpenses > 0 ? ` − ${formatCurrency(otherExpenses)} exp` : ""}
               </p>
             </div>
-            <p className={`text-xl font-bold tabular-nums ${netEarnings >= 0 ? "text-accent-green" : "text-status-red"}`}>
+            <p className={`text-xl font-bold tabular-nums shrink-0 ${netEarnings >= 0 ? "text-accent-green" : "text-status-red"}`}>
               {formatCurrency(netEarnings)}
             </p>
           </div>
