@@ -13,13 +13,23 @@
 
   html {
     -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    max-width: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    height: auto;
+    min-height: 100%;
   }
 
   body {
     background-color: #F0F4F8;
     color: #0F172A;
     font-family: var(--font-inter);
-    overscroll-behavior: none;
+    width: 100%;
+    position: relative;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Scrollbar */

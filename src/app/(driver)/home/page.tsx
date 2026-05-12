@@ -259,7 +259,7 @@ export default function DriverHomePage() {
   }, [filteredRides, filteredFuel, filteredExpenses, userId]);
 
   return (
-    <div className="px-4 pt-4 pb-4 flex flex-col gap-5 w-full overflow-x-hidden">
+    <div className="px-4 pt-4 pb-4 flex flex-col gap-5 w-full">
       <ScreenHeader
         title={`${getGreeting()}, ${firstName}`}
         titleUrdu={vehicleLabel}

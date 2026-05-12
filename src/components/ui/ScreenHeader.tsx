@@ -31,7 +31,7 @@ export default function ScreenHeader({
   const notifUrl = role === "owner" ? "/notifications" : "/notifications";
 
   return (
-    <header className="sticky top-0 z-40 flex items-center h-14 px-4 bg-brand-bg/80 backdrop-blur-md border-b border-slate-200/30">
+    <header className="sticky top-0 z-40 flex items-center w-full h-14 px-4 bg-brand-bg/80 backdrop-blur-md border-b border-slate-200/30 overflow-hidden">
       {/* Left: back button */}
       <div className="w-10">
         {showBack && (
