@@ -75,9 +75,9 @@ function TimelineEntry({ entry, isLast }: { entry: DayEntry; isLast: boolean }) 
 
 function StatPill({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="flex flex-col items-center bg-brand-elevated rounded-xl px-3 py-2.5 flex-1">
+    <div className="flex flex-col items-center bg-brand-elevated rounded-xl px-3 py-2.5 flex-1 min-w-0">
       <p className="text-[11px] text-slate-500 leading-tight">{label}</p>
-      <p className="text-base font-bold text-slate-900 mt-0.5 leading-tight tabular-nums">{value}</p>
+      <p className="text-base font-bold text-slate-900 mt-0.5 leading-tight tabular-nums truncate w-full text-center">{value}</p>
       {sub && <p className="text-[10px] text-slate-600 mt-0.5">{sub}</p>}
     </div>
   );

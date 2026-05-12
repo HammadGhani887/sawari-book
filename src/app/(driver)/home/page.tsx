@@ -22,7 +22,7 @@ function MiniKPI({ icon, value, label, colorClass = "text-slate-900", sub }: {
   return (
     <div className="bg-brand-surface rounded-2xl flex flex-col items-center gap-1 py-3 px-1">
       <span className="text-xl leading-none">{icon}</span>
-      <span className={`text-base font-bold leading-none tabular-nums ${colorClass}`}>{value}</span>
+      <span className={`text-base font-bold leading-none tabular-nums truncate w-full text-center px-1 ${colorClass}`}>{value}</span>
       <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center leading-tight">
         {label}
       </span>
@@ -277,9 +277,9 @@ export default function DriverHomePage() {
 
       {/* ── Export Section ── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
-        <div>
+        <div className="min-w-0 flex-1 pr-2">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reports</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Export logs for this period</p>
+          <p className="text-[10px] text-slate-400 mt-0.5 truncate">Export logs for this period</p>
         </div>
         <div className="flex gap-2">
           <button 
@@ -338,10 +338,10 @@ export default function DriverHomePage() {
 
       {/* Net Profit KPI (full width) */}
       <div className="bg-brand-surface rounded-2xl p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">📈</span>
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Net Profit Today</p>
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-2xl shrink-0">📈</span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Net Profit Today</p>
             <p className="text-[10px] text-slate-400" dir="rtl">آج کا منافع</p>
           </div>
         </div>
@@ -375,9 +375,9 @@ export default function DriverHomePage() {
                 <div key={exp.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
                   <div className="flex items-center gap-3">
                     <span className="text-xl">{EXPENSE_CATEGORIES.find(c => c.id === exp.category)?.emoji || "🧾"}</span>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{EXPENSE_CATEGORIES.find(c => c.id === exp.category)?.name || exp.category}</p>
-                      <p className="text-[10px] text-slate-500">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{EXPENSE_CATEGORIES.find(c => c.id === exp.category)?.name || exp.category}</p>
+                      <p className="text-[10px] text-slate-500 truncate">
                         {new Date(exp.date).toLocaleDateString("en-PK", { day: "numeric", month: "short" })} · 
                         <span className={exp.status === "pending" ? "text-slate-500" : exp.status === "approved" ? "text-accent-green" : "text-status-red"}> {exp.status}</span>
                       </p>
