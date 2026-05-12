@@ -31,8 +31,8 @@ export default function DateRangeFilter({
     "bg-status-amber text-white shadow-sm";
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
+    <div className="flex flex-col gap-3 w-full max-w-full">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth w-full">
         {RANGES.map((range) => (
           <button
             key={range.id}

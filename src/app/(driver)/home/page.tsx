@@ -51,7 +51,7 @@ function TimelineEntry({ entry, isLast }: { entry: LogEntry; isLast: boolean }) 
         <div className="w-2.5 h-2.5 rounded-full mt-0.5 shrink-0" style={{ backgroundColor: entry.dotColor }} />
         {!isLast && <div className="w-px flex-1 mt-1.5 mb-0" style={{ backgroundColor: "rgba(71,85,105,0.4)" }} />}
       </div>
-      <div className="flex-1 pb-4">
+      <div className="flex-1 min-w-0 pb-4">
         <div className="flex items-start justify-between gap-2">
           <p className="text-sm text-slate-800 leading-snug">{entry.icon} {entry.description}</p>
           <div className="flex flex-col items-end shrink-0">
@@ -259,7 +259,7 @@ export default function DriverHomePage() {
   }, [filteredRides, filteredFuel, filteredExpenses, userId]);
 
   return (
-    <div className="px-4 pt-4 pb-4 flex flex-col gap-5">
+    <div className="px-4 pt-4 pb-4 flex flex-col gap-5 w-full overflow-x-hidden">
       <ScreenHeader
         title={`${getGreeting()}, ${firstName}`}
         titleUrdu={vehicleLabel}

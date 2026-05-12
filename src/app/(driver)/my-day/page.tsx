@@ -41,7 +41,7 @@ function TimelineEntry({ entry, isLast }: { entry: DayEntry; isLast: boolean }) 
         <div className="w-3 h-3 rounded-full shrink-0 mt-0.5 z-10" style={{ backgroundColor: entry.dotColor }} />
         {!isLast && <div className="w-px flex-1 mt-1 bg-slate-700/50" />}
       </div>
-      <div className="flex-1 pl-3 pb-4">
+      <div className="flex-1 min-w-0 pl-3 pb-4">
         <div className="flex items-start justify-between gap-2">
           <p className="text-sm text-slate-800 leading-snug">{entry.icon} {entry.description}</p>
           <p className={`text-sm font-semibold tabular-nums shrink-0 leading-snug ${entry.amountColor}`}>
