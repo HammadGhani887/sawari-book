@@ -13,9 +13,9 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
           <OwnerSidebar />
 
           {/* Main content */}
-          <div className="flex flex-col flex-1 md:ml-60">
-            <main className="flex-1 pb-20 md:pb-6">
-              <div className="mx-auto w-full max-w-2xl md:max-w-none animate-fadeIn">
+          <div className="flex flex-col flex-1 md:ml-60 w-full min-w-0">
+            <main className="flex-1 pb-20 md:pb-6 w-full">
+              <div className="mx-auto w-full max-w-lg md:max-w-none animate-fadeIn px-0">
                 {children}
               </div>
             </main>

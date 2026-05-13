@@ -212,7 +212,7 @@ export default function OwnerDashboardPage() {
   }, [vehicles, filteredRides, rides, drivers, rangeType]);
 
   return (
-    <div className="px-4 pt-4 pb-4 flex flex-col gap-5">
+    <div className="px-4 pt-4 pb-4 flex flex-col gap-5 w-full">
       <ScreenHeader
         title={`${getGreeting()}, ${firstName}`}
         titleUrdu="خوش آمدید"
