@@ -86,6 +86,10 @@ export default function AddRidePage() {
 
   async function handleSave() {
     if (!canSubmit || !platform) return;
+    if (!driver?.vehicleId) {
+      toast.error("No vehicle assigned. Ask owner to assign you a vehicle.");
+      return;
+    }
     setSaving(true);
     await new Promise((r) => setTimeout(r, 300));
 
@@ -117,6 +121,7 @@ export default function AddRidePage() {
 
     if (!navigator.onLine) {
       saveRideOffline(rideData, idempotencyKey);
+      addRide(rideData);
       toast("Ride saved offline. Will sync when connected.", {
         icon: "📶",
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
@@ -139,9 +144,17 @@ export default function AddRidePage() {
           rideTime:          rideData.rideTime,
         });
         savedToDb = true;
-      } catch {
-        // API failed — fall back to local store only
-        saveRideOffline(rideData, idempotencyKey);
+      } catch (err) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        const serverMsg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const canQueue = !status || status >= 500;
+        if (canQueue) {
+          saveRideOffline(rideData, idempotencyKey);
+        } else {
+          toast.error(serverMsg ?? "Failed to save ride");
+          setSaving(false);
+          return;
+        }
       }
 
       // Update local store for instant UI (only once)

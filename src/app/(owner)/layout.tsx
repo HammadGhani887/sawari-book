@@ -4,7 +4,6 @@ import OwnerSidebar from "@/components/layout/OwnerSidebar";
 import DataSyncProvider from "@/components/layout/DataSyncProvider";
 
 export default function OwnerLayout({ children }: { children: React.ReactNode }) {
-  // Triggering new deployment for public repo
   return (
     <AuthGuard requiredRole="owner">
       <DataSyncProvider>

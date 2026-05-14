@@ -48,6 +48,7 @@ enum SalaryType {
 
 enum ExpenseCategory {
   FUEL
+  BOOST
   MAINTENANCE
   OIL_CHANGE
   TYRE

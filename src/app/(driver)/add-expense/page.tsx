@@ -48,10 +48,14 @@ export default function DriverAddExpensePage() {
 
   async function handleSubmit() {
     if (!canSubmit || !category) return;
+    if (!driver?.vehicleId) {
+      toast.error("No vehicle assigned. Ask owner to assign you a vehicle.");
+      return;
+    }
     setSaving(true);
     await new Promise((r) => setTimeout(r, 400));
     const expenseData = {
-      vehicleId: driver?.vehicleId ?? "",
+      vehicleId: driver.vehicleId,
       loggedBy:  useAuthStore.getState().user?.id ?? "",
       category,
       amount:    Number(amount),
@@ -64,6 +68,7 @@ export default function DriverAddExpensePage() {
 
     if (!navigator.onLine) {
       saveExpenseOffline(expenseData, idempotencyKey);
+      addExpense(expenseData);
       toast("Expense saved offline. Will sync when connected.", {
         icon: "📶",
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
@@ -82,9 +87,17 @@ export default function DriverAddExpensePage() {
           date:      expenseData.date,
         });
         savedToDb = true;
-      } catch {
-        // API failed — fall back to local store only
-        saveExpenseOffline(expenseData, idempotencyKey);
+      } catch (err) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        const serverMsg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const canQueue = !status || status >= 500;
+        if (canQueue) {
+          saveExpenseOffline(expenseData, idempotencyKey);
+        } else {
+          toast.error(serverMsg ?? "Failed to submit expense");
+          setSaving(false);
+          return;
+        }
       }
 
       // Update local store for instant UI (only once)

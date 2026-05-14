@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { ExpenseCategory, Prisma } from "@prisma/client";
 import { verifyAuth, unauthorized, badRequest } from "@/app/api/_lib/auth";
+import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 
 export async function GET(req: NextRequest) {
   const auth = verifyAuth(req);
@@ -72,6 +73,12 @@ export async function POST(req: NextRequest) {
     return badRequest("vehicleId, category, and amount are required");
   }
 
+  const categoryId = String(body.category).toLowerCase();
+  const allowedCategoryIds = new Set(EXPENSE_CATEGORIES.map((c) => c.id));
+  if (!allowedCategoryIds.has(categoryId)) {
+    return badRequest(`Invalid category: ${categoryId}`);
+  }
+
   // Security Check: Does user have access to this vehicle?
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: body.vehicleId },
@@ -97,6 +104,7 @@ export async function POST(req: NextRequest) {
   const status = auth.role === "owner" ? "APPROVED" : "PENDING";
   let expense;
   let replayed = false;
+  const category = categoryId.toUpperCase() as ExpenseCategory;
 
   if (idempotencyKey) {
     const scope = "expense_create";
@@ -125,7 +133,7 @@ export async function POST(req: NextRequest) {
         data: {
           vehicleId: body.vehicleId,
           loggedBy: auth.userId,
-          category: body.category.toUpperCase(),
+          category,
           amount: Number(body.amount),
           note: body.note ?? null,
           receiptUrl: body.receiptUrl ?? null,
@@ -156,7 +164,7 @@ export async function POST(req: NextRequest) {
       data: {
         vehicleId:  body.vehicleId,
         loggedBy:   auth.userId,
-        category:   body.category.toUpperCase(),
+        category,
         amount:     Number(body.amount),
         note:       body.note       ?? null,
         receiptUrl: body.receiptUrl ?? null,

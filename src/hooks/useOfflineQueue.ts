@@ -63,6 +63,7 @@ export function useOfflineSync() {
 
       let total = 0;
       let failed = 0;
+      let permanentFailed = 0;
 
       // Sync rides
       const ridesRaw: Array<PendingRide | QueuedItem<PendingRide>> = JSON.parse(localStorage.getItem(RIDE_QUEUE_KEY) ?? "[]");
@@ -74,9 +75,14 @@ export function useOfflineSync() {
             await api.post("/rides", { ...ride.payload, idempotencyKey: ride.idempotencyKey });
             addRide(ride.payload);
             total += 1;
-          } catch {
-            unsyncedRides.push(ride);
-            failed += 1;
+          } catch (err) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            if (status && status < 500) {
+              permanentFailed += 1;
+            } else {
+              unsyncedRides.push(ride);
+              failed += 1;
+            }
           }
         }
         if (unsyncedRides.length > 0) {
@@ -96,9 +102,14 @@ export function useOfflineSync() {
             await api.post("/fuel", { ...fuel.payload, idempotencyKey: fuel.idempotencyKey });
             addFuel(fuel.payload);
             total += 1;
-          } catch {
-            unsyncedFuels.push(fuel);
-            failed += 1;
+          } catch (err) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            if (status && status < 500) {
+              permanentFailed += 1;
+            } else {
+              unsyncedFuels.push(fuel);
+              failed += 1;
+            }
           }
         }
         if (unsyncedFuels.length > 0) {
@@ -118,9 +129,14 @@ export function useOfflineSync() {
             await api.post("/expenses", { ...expense.payload, idempotencyKey: expense.idempotencyKey });
             addExpense(expense.payload);
             total += 1;
-          } catch {
-            unsyncedExpenses.push(expense);
-            failed += 1;
+          } catch (err) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            if (status && status < 500) {
+              permanentFailed += 1;
+            } else {
+              unsyncedExpenses.push(expense);
+              failed += 1;
+            }
           }
         }
         if (unsyncedExpenses.length > 0) {
@@ -140,6 +156,11 @@ export function useOfflineSync() {
       }
       if (failed > 0) {
         toast.error(`${failed} offline entr${failed > 1 ? "ies" : "y"} still pending sync`, {
+          style: { background: "#1E293B", color: "#fff", borderRadius: "12px" },
+        });
+      }
+      if (permanentFailed > 0) {
+        toast.error(`${permanentFailed} offline entr${permanentFailed > 1 ? "ies" : "y"} could not sync and were removed`, {
           style: { background: "#1E293B", color: "#fff", borderRadius: "12px" },
         });
       }

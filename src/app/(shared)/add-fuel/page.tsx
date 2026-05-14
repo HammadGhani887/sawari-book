@@ -94,6 +94,7 @@ function AddFuelContent() {
 
     if (!navigator.onLine) {
       saveFuelOffline(fuelData, idempotencyKey);
+      addFuel(fuelData);
       toast("Fuel saved offline. Will sync when connected.", {
         icon: "📶",
         style: { background: "#1E293B", color: "#fff", borderRadius: "12px", borderLeft: "4px solid #F59E0B" },
@@ -112,8 +113,17 @@ function AddFuelContent() {
           date:      fuelData.date,
         });
         savedToDb = true;
-      } catch {
-        saveFuelOffline(fuelData, idempotencyKey);
+      } catch (err) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        const serverMsg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const canQueue = !status || status >= 500;
+        if (canQueue) {
+          saveFuelOffline(fuelData, idempotencyKey);
+        } else {
+          toast.error(serverMsg ?? "Failed to save fuel");
+          setSaving(false);
+          return;
+        }
       }
 
       addFuel(fuelData);
